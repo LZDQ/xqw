@@ -22,7 +22,7 @@ camera.position.set(0, 1.6, 4);
 console.log("[acg3d] camera", camera.position);
 
 // Scene setup
-const { scene, players: playerMeshes, buttons } = initClassroom(THREE);
+const { scene, players: playerMeshes, buttons, ready } = initClassroom(THREE);
 scene.add(camera);
 console.log("[acg3d] scene objects", scene.children.length);
 
@@ -109,6 +109,9 @@ function animate(){
   // console.log("[acg3d] frame", delta);
 }
 renderPlayers();
+if(ready && typeof ready.then === "function"){
+  ready.then(() => renderPlayers());
+}
 animate();
 
 function makeCrosshair(){
