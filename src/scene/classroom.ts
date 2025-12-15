@@ -3,8 +3,9 @@ import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { clone as cloneSkinned } from "three/examples/jsm/utils/SkeletonUtils.js";
 
 const ROOM = { width: 14, depth: 10, height: 4 };
-const MODEL_BASE = new URL("../../public/assets/models/", import.meta.url).href;
-const FALLBACK_TEXTURE = new URL("../../public/assets/textures/WOOD 1_0.jpeg", import.meta.url).href;
+// Use root-relative paths so dev server/static builds serve public assets correctly.
+const MODEL_BASE = "/assets/models/";
+const FALLBACK_TEXTURE = "/assets/textures/WOOD 1_0.jpeg";
 const MODEL_SCALE: Record<AssetKey, number> = {
   desk: 0.4,        // doubled to restore 2x sizing
   chair: 0.01,
