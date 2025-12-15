@@ -1,0 +1,3 @@
+[submodule "base-game"]
+	path = base-game
+	url = https://github.com/seve42/OITrainer.git
