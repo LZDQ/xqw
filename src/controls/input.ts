@@ -4,30 +4,40 @@ import { PointerLockControls } from "three/examples/jsm/controls/PointerLockCont
 const bounds = { x: 6.5, z: 4.5 };
 
 export class InputController {
-  constructor(camera, domElement){
+  private camera: THREE.PerspectiveCamera;
+  private controls: PointerLockControls;
+  private keys: Set<string>;
+  private walkSpeed = 3.5;
+  private readonly onKeyDown: (e: KeyboardEvent) => void;
+  private readonly onKeyUp: (e: KeyboardEvent) => void;
+
+  constructor(camera: THREE.PerspectiveCamera, domElement: HTMLElement){
     this.camera = camera;
     this.controls = new PointerLockControls(camera, domElement);
-    this.keys = new Set();
-    this.velocity = new THREE.Vector3();
-    this.walkSpeed = 3.5;
+    this.keys = new Set<string>();
 
-    this._onKeyDown = (e) => this.keys.add(e.code);
-    this._onKeyUp = (e) => this.keys.delete(e.code);
+    this.onKeyDown = (e: KeyboardEvent) => this.keys.add(e.code);
+    this.onKeyUp = (e: KeyboardEvent) => this.keys.delete(e.code);
 
-    window.addEventListener("keydown", this._onKeyDown);
-    window.addEventListener("keyup", this._onKeyUp);
+    window.addEventListener("keydown", this.onKeyDown);
+    window.addEventListener("keyup", this.onKeyUp);
   }
 
-  lock(){ this.controls.lock(); }
-  isLocked(){ return this.controls.isLocked; }
+  lock(): void{
+    this.controls.lock();
+  }
 
-  dispose(){
-    window.removeEventListener("keydown", this._onKeyDown);
-    window.removeEventListener("keyup", this._onKeyUp);
+  isLocked(): boolean{
+    return this.controls.isLocked;
+  }
+
+  dispose(): void{
+    window.removeEventListener("keydown", this.onKeyDown);
+    window.removeEventListener("keyup", this.onKeyUp);
     this.controls.unlock();
   }
 
-  update(delta){
+  update(delta: number): void{
     if(!this.controls.isLocked) return;
     const direction = new THREE.Vector3();
     const forward = (this.keys.has("KeyW") ? 1 : 0) - (this.keys.has("KeyS") ? 1 : 0);
@@ -37,11 +47,11 @@ export class InputController {
       const move = direction.multiplyScalar(this.walkSpeed * delta);
       this.controls.moveRight(move.x);
       this.controls.moveForward(move.z);
-      this._clampPosition();
+      this.clampPosition();
     }
   }
 
-  _clampPosition(){
+  private clampPosition(): void{
     const pos = this.camera.position;
     pos.x = Math.max(-bounds.x, Math.min(bounds.x, pos.x));
     pos.z = Math.max(-bounds.z, Math.min(bounds.z, pos.z));

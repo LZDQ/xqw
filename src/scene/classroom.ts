@@ -1,21 +1,35 @@
+import type * as THREEType from "three";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { clone as cloneSkinned } from "three/examples/jsm/utils/SkeletonUtils.js";
 
 const ROOM = { width: 14, depth: 10, height: 4 };
 const MODEL_BASE = new URL("../../public/assets/models/", import.meta.url).href;
 const FALLBACK_TEXTURE = new URL("../../public/assets/textures/WOOD 1_0.jpeg", import.meta.url).href;
-const MODEL_SCALE = {
+const MODEL_SCALE: Record<AssetKey, number> = {
   desk: 0.4,        // doubled to restore 2x sizing
   chair: 0.01,
   player: 0.035,
   whiteboard: 0.01
 };
 
-export function initClassroom(THREE){
+type AssetKey = "desk" | "chair" | "player" | "whiteboard";
+
+interface Seat {
+  x: number;
+  z: number;
+  index: number;
+}
+
+export interface ClassroomInitResult {
+  scene: THREEType.Scene;
+  ready: Promise<void>;
+  playerMeshes: THREEType.Object3D[];
+}
+
+export function initClassroom(THREE: typeof THREEType): ClassroomInitResult{
   const scene = new THREE.Scene();
   scene.background = new THREE.Color(0xf5f7fb);
 
-  // Floor and walls
   const floorMap = new THREE.TextureLoader().load(FALLBACK_TEXTURE);
   floorMap.wrapS = floorMap.wrapT = THREE.RepeatWrapping;
   floorMap.repeat.set(ROOM.width / 2, ROOM.depth / 2);
@@ -27,14 +41,13 @@ export function initClassroom(THREE){
   scene.add(floor);
 
   const wallMat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.85, metalness: 0.02 });
-  const walls = [];
-  walls.push(makeWall(THREE, ROOM.width, ROOM.height, ROOM.depth / 2, 0, Math.PI));          // back
-  walls.push(makeWall(THREE, ROOM.width, ROOM.height, -ROOM.depth / 2, 0, 0));                // front
-  walls.push(makeWall(THREE, ROOM.depth, ROOM.height, 0, ROOM.width / 2, -Math.PI / 2, true));// right
-  walls.push(makeWall(THREE, ROOM.depth, ROOM.height, 0, -ROOM.width / 2, Math.PI / 2, true));// left
+  const walls: THREEType.Mesh[] = [];
+  walls.push(makeWall(THREE, ROOM.width, ROOM.height, ROOM.depth / 2, 0, Math.PI));
+  walls.push(makeWall(THREE, ROOM.width, ROOM.height, -ROOM.depth / 2, 0, 0));
+  walls.push(makeWall(THREE, ROOM.depth, ROOM.height, 0, ROOM.width / 2, -Math.PI / 2));
+  walls.push(makeWall(THREE, ROOM.depth, ROOM.height, 0, -ROOM.width / 2, Math.PI / 2));
   walls.forEach(w => { w.material = wallMat; scene.add(w); });
 
-  // Lighting
   scene.add(new THREE.AmbientLight(0xffffff, 0.6));
   const keyLight = new THREE.DirectionalLight(0xffffff, 0.9);
   keyLight.position.set(5, 6, 3);
@@ -45,83 +58,36 @@ export function initClassroom(THREE){
   screenLight.position.set(0, 2.5, -ROOM.depth / 2 + 0.3);
   scene.add(screenLight);
 
-  const players = [];
+  const playerMeshes: THREEType.Object3D[] = [];
   const seatLayout = buildSeatLayout();
-  const ready = loadClassroomAssets(THREE, scene, seatLayout, players);
+  const ready = loadClassroomAssets(THREE, scene, seatLayout, playerMeshes);
 
-  // Button panel on right wall
-  const buttonData = [
-    { label: "模拟赛", action: "simulate" },
-    { label: "训练", action: "train" },
-    { label: "吃饭", action: "eat" },
-    { label: "外出集训", action: "camp" }
-  ];
-  const buttons = buildButtons(THREE, buttonData);
-  const panelGroup = new THREE.Group();
-  panelGroup.position.set(ROOM.width / 2 - 0.2, 1.4, -ROOM.depth / 4);
-  panelGroup.rotation.y = -Math.PI / 2;
-  buttons.forEach((btn, i) => {
-    btn.position.y = (buttonData.length - 1 - i) * 0.5;
-    panelGroup.add(btn);
-  });
-  scene.add(panelGroup);
-
-  return { scene, players, buttons, ready };
+  return { scene, ready, playerMeshes };
 }
 
-export function updatePlayerMeshes(THREE, meshes, playersData, selectedId){
-  const statusColors = {
-    idle: 0x7cc5ff,
-    training: 0x9acd32,
-    contest: 0xffc857,
-    eating: 0x7be0b5,
-    camp: 0xff8c69,
-    busy: 0xd1b3ff
-  };
-  meshes.forEach(mesh => {
-    const p = playersData.find(s => s.id === mesh.userData.playerId);
-    if(!p) return;
-    const color = statusColors[p.status] || statusColors.idle;
-    const ring = mesh.userData.statusRing;
-    if(ring){
-      ring.material.color.set(color);
-      ring.material.opacity = mesh.userData.playerId === selectedId ? 0.85 : 0.55;
-      const scale = mesh.userData.playerId === selectedId ? 1.25 : 1.0;
-      ring.scale.set(scale, 1, scale);
-    }
-  });
-}
-
-function makeWall(THREE, width, height, z, x = 0, rotY = 0, swap = false){
-  const geo = swap ? new THREE.PlaneGeometry(width, height) : new THREE.PlaneGeometry(width, height);
-  const mesh = new THREE.Mesh(geo);
+function makeWall(
+  THREE: typeof THREEType,
+  width: number,
+  height: number,
+  z: number,
+  x = 0,
+  rotY = 0
+): THREEType.Mesh{
+  const mesh = new THREE.Mesh(new THREE.PlaneGeometry(width, height));
   mesh.position.set(x, height / 2, z);
   mesh.rotation.y = rotY;
   return mesh;
 }
 
-function buildButtons(THREE, list){
-  const buttons = [];
-  const geo = new THREE.BoxGeometry(0.3, 0.18, 0.05);
-  list.forEach(item => {
-    const mat = new THREE.MeshStandardMaterial({ color: 0x2c71ff, emissive: 0x1a3366, roughness: 0.35 });
-    const mesh = new THREE.Mesh(geo, mat);
-    mesh.userData.action = item.action;
-    mesh.userData.label = item.label;
-    buttons.push(mesh);
-  });
-  return buttons;
-}
-
-function buildSeatLayout(){
+function buildSeatLayout(): Seat[]{
   const rows = 2;
   const cols = 2;
   const startX = -3;
   const startZ = -1.5;
-  const seats = [];
+  const seats: Seat[] = [];
   let idx = 0;
-  for(let r=0; r<rows; r++){
-    for(let c=0; c<cols; c++){
+  for(let r = 0; r < rows; r++){
+    for(let c = 0; c < cols; c++){
       const x = startX + c * 3.5;
       const z = startZ + r * 2.5;
       seats.push({ x, z, index: idx++ });
@@ -130,7 +96,12 @@ function buildSeatLayout(){
   return seats;
 }
 
-function loadClassroomAssets(THREE, scene, seats, playerMeshes){
+function loadClassroomAssets(
+  THREE: typeof THREEType,
+  scene: THREEType.Scene,
+  seats: Seat[],
+  playerMeshes: THREEType.Object3D[]
+): Promise<void>{
   const manager = new THREE.LoadingManager();
   manager.setURLModifier(url => {
     if(url.endsWith("textures/diffuse.png") || url.endsWith("textures/shadow.png")){
@@ -141,23 +112,26 @@ function loadClassroomAssets(THREE, scene, seats, playerMeshes){
   const loader = new GLTFLoader(manager);
   loader.setPath(MODEL_BASE);
   loader.setResourcePath(MODEL_BASE);
-  const assetsToLoad = [
+
+  const assetsToLoad: Array<[AssetKey, string]> = [
     ["desk", "desk.glb"],
     ["chair", "chair.gltf"],
     ["player", "nairong.glb"],
     ["whiteboard", "whiteboard.glb"]
   ];
+
   const loadPromises = assetsToLoad.map(([key, file]) =>
     loader.loadAsync(file).then(gltf => ({ key, gltf })).catch(err => {
       console.error(`[acg3d] failed to load ${file}`, err);
       return null;
     })
   );
+
   return Promise.all(loadPromises).then(results => {
-    const assets = {};
+    const assets: Partial<Record<AssetKey, THREEType.Object3D>> = {};
     results.forEach(entry => {
       if(!entry) return;
-      const prepared = prepareAsset(THREE, entry.gltf.scene, MODEL_SCALE[entry.key] || 1);
+      const prepared = prepareAsset(THREE, entry.gltf.scene, MODEL_SCALE[entry.key]);
       assets[entry.key] = prepared;
     });
     if(assets.whiteboard){
@@ -175,13 +149,14 @@ function loadClassroomAssets(THREE, scene, seats, playerMeshes){
   });
 }
 
-function prepareAsset(THREE, scene, scale = 1){
+function prepareAsset(THREE: typeof THREEType, scene: THREEType.Object3D, scale = 1): THREEType.Object3D{
   scene.traverse(child => {
-    if(child.isMesh){
-      child.castShadow = true;
-      child.receiveShadow = true;
-      child.visible = true;
-      child.frustumCulled = false;
+    const mesh = child as THREEType.Mesh;
+    if(mesh.isMesh){
+      mesh.castShadow = true;
+      mesh.receiveShadow = true;
+      mesh.visible = true;
+      mesh.frustumCulled = false;
     }
   });
   scene.scale.setScalar(scale);
@@ -194,11 +169,17 @@ function prepareAsset(THREE, scene, scale = 1){
   return scene;
 }
 
-function cloneAsset(scene){
+function cloneAsset(scene: THREEType.Object3D): THREEType.Object3D{
   return cloneSkinned(scene);
 }
 
-function addSeat(THREE, scene, seat, assets, playerMeshes){
+function addSeat(
+  THREE: typeof THREEType,
+  scene: THREEType.Scene,
+  seat: Seat,
+  assets: Partial<Record<AssetKey, THREEType.Object3D>>,
+  playerMeshes: THREEType.Object3D[]
+): void{
   const root = new THREE.Group();
   root.position.set(seat.x, 0, seat.z);
   scene.add(root);
@@ -225,16 +206,14 @@ function addSeat(THREE, scene, seat, assets, playerMeshes){
   }
 }
 
-function tagPlayerHierarchy(root, playerId){
+function tagPlayerHierarchy(root: THREEType.Object3D, playerId: string): void{
   root.userData.playerId = playerId;
   root.traverse(child => {
-    if(child.isMesh || child.isGroup){
-      child.userData.playerId = playerId;
-    }
+    child.userData.playerId = playerId;
   });
 }
 
-function attachStatusRing(THREE, player){
+function attachStatusRing(THREE: typeof THREEType, player: THREEType.Object3D): void{
   const ringGeo = new THREE.RingGeometry(0.2, 0.32, 32);
   const ringMat = new THREE.MeshBasicMaterial({ color: 0x7cc5ff, transparent: true, opacity: 0.6, side: THREE.DoubleSide });
   const ring = new THREE.Mesh(ringGeo, ringMat);
