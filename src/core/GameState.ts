@@ -1,3 +1,4 @@
+import type * as THREE from "three";
 import { Student } from "./Student.ts";
 import {
   AC_COMFORT_BONUS_PER_LEVEL,
@@ -109,6 +110,7 @@ export class GameState {
   completedCompetitions: Set<string> = new Set();
   careerCompetitions: Array<unknown> = [];
   provinceClimate: ClimateProfile | null = null;
+  scene: THREE.Scene | null = null;
 
   constructor(difficulty: number, provinceId: number, numStudents: number) {
     this.difficultyConfig = getDifficultyById(difficulty) ?? getDifficultyById(2);
@@ -127,8 +129,9 @@ export class GameState {
         (this.difficultyConfig?.budgetMultiplier ?? 1.0)
     );
 
-    this.initialStudents = numStudents;
-    this.students = this.createStudents(numStudents);
+    const cappedStudents = Math.min(9, Math.max(1, numStudents));
+    this.initialStudents = cappedStudents;
+    this.students = this.createStudents(cappedStudents);
 
     this.qualification = [
       this.createEmptyQualificationMap(),
@@ -154,6 +157,7 @@ export class GameState {
 
   private createStudents(count: number): Student[] {
     const list: Student[] = [];
+    const seatIds = this.assignSeats(count);
     const type = this.provinceType;
     let min = NORMAL_PROVINCE_MIN_ABILITY;
     let max = NORMAL_PROVINCE_MAX_ABILITY;
@@ -175,9 +179,20 @@ export class GameState {
       const coding = clamp(normal(mean, stddev), 0, 100);
       const mental = clamp(normal(mean, stddev), 0, 100);
       const student = new Student(generateName(this.provinceName, i), thinking, coding, mental);
+      student.seatId = seatIds[i] ?? null;
       list.push(student);
     }
     return list;
+  }
+
+  private assignSeats(count: number): number[] {
+    const maxSeats = 9;
+    const available = Array.from({ length: maxSeats }, (_, idx) => idx + 1);
+    for (let i = available.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [available[i], available[j]] = [available[j], available[i]];
+    }
+    return available.slice(0, count);
   }
 
   getWeatherFactor(): number {

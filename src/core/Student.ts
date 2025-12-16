@@ -66,6 +66,7 @@ export class Student {
   active: boolean;
   sick_weeks: number;
   visuals: StudentVisualAssets;
+  seatId: number | null;
 
   private static textureAssets: StudentVisualAssets | null = null;
 
@@ -124,6 +125,7 @@ export class Student {
     this.high_pressure_weeks = 0;
     this.active = true;
     this.sick_weeks = 0;
+    this.seatId = null;
 
     // Lightweight 3D support: load shared textures so avatars/status rings can bind quickly.
     this.visuals = Student.ensureVisualAssets();

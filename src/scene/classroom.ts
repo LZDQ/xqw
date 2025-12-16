@@ -1,6 +1,7 @@
 import type * as THREEType from "three";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { clone as cloneSkinned } from "three/examples/jsm/utils/SkeletonUtils.js";
+import type { Student } from "../core/Student.ts";
 
 const ROOM = { width: 14, depth: 10, height: 4 };
 // Use root-relative paths so dev server/static builds serve public assets correctly.
@@ -16,9 +17,9 @@ const MODEL_SCALE: Record<AssetKey, number> = {
 type AssetKey = "desk" | "chair" | "player" | "whiteboard";
 
 interface Seat {
+  seatId: number;
   x: number;
   z: number;
-  index: number;
 }
 
 export interface ClassroomInitResult {
@@ -27,7 +28,7 @@ export interface ClassroomInitResult {
   playerMeshes: THREEType.Object3D[];
 }
 
-export function initClassroom(THREE: typeof THREEType): ClassroomInitResult{
+export function initClassroom(THREE: typeof THREEType, students: Student[]): ClassroomInitResult {
   const scene = new THREE.Scene();
   scene.background = new THREE.Color(0xf5f7fb);
 
@@ -61,7 +62,7 @@ export function initClassroom(THREE: typeof THREEType): ClassroomInitResult{
 
   const playerMeshes: THREEType.Object3D[] = [];
   const seatLayout = buildSeatLayout();
-  const ready = loadClassroomAssets(THREE, scene, seatLayout, playerMeshes);
+  const ready = loadClassroomAssets(THREE, scene, seatLayout, playerMeshes, students);
 
   return { scene, ready, playerMeshes };
 }
@@ -80,18 +81,20 @@ function makeWall(
   return mesh;
 }
 
-function buildSeatLayout(): Seat[]{
-  const rows = 2;
-  const cols = 2;
-  const startX = -3;
+function buildSeatLayout(): Seat[] {
+  const rows = 3;
+  const cols = 3;
+  const startX = -3.5;
   const startZ = -1.5;
+  const dx = 3.5;
+  const dz = 2.0;
   const seats: Seat[] = [];
-  let idx = 0;
-  for(let r = 0; r < rows; r++){
-    for(let c = 0; c < cols; c++){
-      const x = startX + c * 3.5;
-      const z = startZ + r * 2.5;
-      seats.push({ x, z, index: idx++ });
+  let idx = 1;
+  for (let r = 0; r < rows; r++) {
+    for (let c = 0; c < cols; c++) {
+      const x = startX + c * dx;
+      const z = startZ + r * dz;
+      seats.push({ seatId: idx++, x, z });
     }
   }
   return seats;
@@ -101,8 +104,9 @@ function loadClassroomAssets(
   THREE: typeof THREEType,
   scene: THREEType.Scene,
   seats: Seat[],
-  playerMeshes: THREEType.Object3D[]
-): Promise<void>{
+  playerMeshes: THREEType.Object3D[],
+  students: Student[]
+): Promise<void> {
   const manager = new THREE.LoadingManager();
   manager.setURLModifier(url => {
     if(url.endsWith("textures/diffuse.png") || url.endsWith("textures/shadow.png")){
@@ -128,6 +132,8 @@ function loadClassroomAssets(
     })
   );
 
+  const seatTexture = new THREE.TextureLoader(manager).load(FALLBACK_TEXTURE);
+
   return Promise.all(loadPromises).then(results => {
     const assets: Partial<Record<AssetKey, THREEType.Object3D>> = {};
     results.forEach(entry => {
@@ -144,8 +150,15 @@ function loadClassroomAssets(
       whiteboard.rotation.y = Math.PI / 2;
       scene.add(whiteboard);
     }
+    const studentBySeat = new Map<number, Student>();
+    students.forEach((student) => {
+      if (student.seatId) {
+        studentBySeat.set(student.seatId, student);
+      }
+    });
     seats.forEach(seat => {
-      addSeat(THREE, scene, seat, assets, playerMeshes);
+      const occupant = studentBySeat.get(seat.seatId);
+      renderSeat(THREE, scene, seat, assets, playerMeshes, seatTexture, occupant);
     });
   });
 }
@@ -174,13 +187,15 @@ function cloneAsset(scene: THREEType.Object3D): THREEType.Object3D{
   return cloneSkinned(scene);
 }
 
-function addSeat(
+function renderSeat(
   THREE: typeof THREEType,
   scene: THREEType.Scene,
   seat: Seat,
   assets: Partial<Record<AssetKey, THREEType.Object3D>>,
-  playerMeshes: THREEType.Object3D[]
-): void{
+  playerMeshes: THREEType.Object3D[],
+  texture: THREEType.Texture,
+  student?: Student
+): void {
   const root = new THREE.Group();
   root.position.set(seat.x, 0, seat.z);
   scene.add(root);
@@ -188,20 +203,22 @@ function addSeat(
   if(assets.desk){
     const desk = cloneAsset(assets.desk);
     desk.rotation.y = Math.PI;
+    applyTextureIfMissing(THREE, desk, texture);
     root.add(desk);
   }
   if(assets.chair){
     const chair = cloneAsset(assets.chair);
     chair.position.set(0, 0, 0.7);
     chair.rotation.y = Math.PI;
+    applyTextureIfMissing(THREE, chair, texture);
     root.add(chair);
   }
-  if(assets.player){
+  if(assets.player && student){
     const player = cloneAsset(assets.player);
     player.position.set(0, 0, 0.35);
     player.rotation.y = Math.PI;
     attachStatusRing(THREE, player);
-    tagPlayerHierarchy(player, `p${seat.index + 1}`);
+    tagPlayerHierarchy(player, `p${seat.seatId}`);
     root.add(player);
     playerMeshes.push(player);
   }
@@ -222,4 +239,21 @@ function attachStatusRing(THREE: typeof THREEType, player: THREEType.Object3D): 
   ring.position.set(0, 0.02, 0);
   player.add(ring);
   player.userData.statusRing = ring;
+}
+
+function applyTextureIfMissing(
+  THREE: typeof THREEType,
+  object: THREEType.Object3D,
+  texture: THREEType.Texture
+): void {
+  object.traverse((child) => {
+    const mesh = child as THREEType.Mesh;
+    if (mesh.isMesh) {
+      const mat = mesh.material as THREEType.MeshStandardMaterial;
+      if (mat && !mat.map) {
+        mat.map = texture;
+        mat.needsUpdate = true;
+      }
+    }
+  });
 }

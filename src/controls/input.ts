@@ -8,6 +8,7 @@ export class InputController {
   private controls: PointerLockControls;
   private keys: Set<string>;
   private walkSpeed = 3.5;
+  private sensitivity = 1.0;
   private readonly onKeyDown: (e: KeyboardEvent) => void;
   private readonly onKeyUp: (e: KeyboardEvent) => void;
 
@@ -15,6 +16,7 @@ export class InputController {
     this.camera = camera;
     this.controls = new PointerLockControls(camera, domElement);
     this.keys = new Set<string>();
+    this.setSensitivity(this.sensitivity);
 
     this.onKeyDown = (e: KeyboardEvent) => this.keys.add(e.code);
     this.onKeyUp = (e: KeyboardEvent) => this.keys.delete(e.code);
@@ -29,6 +31,10 @@ export class InputController {
 
   isLocked(): boolean{
     return this.controls.isLocked;
+  }
+
+  unlock(): void{
+    this.controls.unlock();
   }
 
   dispose(): void{
@@ -56,5 +62,16 @@ export class InputController {
     pos.x = Math.max(-bounds.x, Math.min(bounds.x, pos.x));
     pos.z = Math.max(-bounds.z, Math.min(bounds.z, pos.z));
     pos.y = 1.6; // keep eye height stable
+  }
+
+  setSensitivity(multiplier: number): void{
+    const clamped = Math.max(0.2, Math.min(5, multiplier));
+    this.sensitivity = clamped;
+    // three.js PointerLockControls exposes pointerSpeed for mouse look
+    (this.controls as unknown as { pointerSpeed?: number }).pointerSpeed = clamped;
+  }
+
+  getSensitivity(): number{
+    return this.sensitivity;
   }
 }

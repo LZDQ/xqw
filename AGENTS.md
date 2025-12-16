@@ -17,3 +17,8 @@ TODO
 - [x] Migrate the event system to `src/lib/enums.ts`.
 - [x] Migrate `Talent` to `src/core/Talents.ts` with an interface and the data (partially done, except for event handler).
 - [x] Migrate `GameState` class to `src/core/GameState.ts`.
+- [x] Create `src/ui/start.ts`, containing the initial HUD for the player to select game options.
+
+BUG
+
+- [ ] Mouse sensitivity normal on Mac but too slow on Arch Linux.
