@@ -20,11 +20,7 @@ interface TempModifiers {
   thinking: number;
   coding: number;
   mental: number;
-  knowledge_ds: number;
-  knowledge_graph: number;
-  knowledge_string: number;
-  knowledge_math: number;
-  knowledge_dp: number;
+  knowledge: Record<KnowledgeType, number>;
   constmental: number;
 }
 
@@ -48,19 +44,18 @@ const FALLBACK_STATUS_COLOR = 0x7cc5ff;
 
 export class Student {
   name: string;
+  // base attributes
   private _baseThinking: number;
   private _baseCoding: number;
   private _baseMental: number;
+  // in-contest attributes
   thinking!: number;
   coding!: number;
   mental!: number;
+
   private _tempModifiers: TempModifiers;
-  talents: Set<string>;
-  knowledge_ds: number;
-  knowledge_graph: number;
-  knowledge_string: number;
-  knowledge_math: number;
-  knowledge_dp: number;
+  talents: Set<string>; // TODO: add `talents.ts` and use TalentType here
+  knowledge: Record<KnowledgeType, number>;
   pressure: number;
   comfort: number;
   comfort_modifier: number;
@@ -71,8 +66,6 @@ export class Student {
   active: boolean;
   sick_weeks: number;
   visuals: StudentVisualAssets;
-  private _talent_backup?: Record<string, unknown>;
-  private _talent_state?: Record<string, unknown>;
 
   private static textureAssets: StudentVisualAssets | null = null;
 
@@ -86,38 +79,42 @@ export class Student {
       thinking: 0,
       coding: 0,
       mental: 0,
-      knowledge_ds: 0,
-      knowledge_graph: 0,
-      knowledge_string: 0,
-      knowledge_math: 0,
-      knowledge_dp: 0,
+      knowledge: {
+        DP: 0,
+        DS: 0,
+        Math: 0,
+        Graph: 0,
+        String: 0,
+      },
       constmental: 0
     };
 
-    Object.defineProperty(this, "thinking", {
-      get: () => this._baseThinking + (this._tempModifiers.thinking || 0),
-      set: (val: number) => { this._baseThinking = val; },
-      enumerable: true
-    });
-
-    Object.defineProperty(this, "coding", {
-      get: () => this._baseCoding + (this._tempModifiers.coding || 0),
-      set: (val: number) => { this._baseCoding = val; },
-      enumerable: true
-    });
-
-    Object.defineProperty(this, "mental", {
-      get: () => this._baseMental + (this._tempModifiers.mental || 0),
-      set: (val: number) => { this._baseMental = val; },
-      enumerable: true
-    });
+    // Object.defineProperty(this, "thinking", {
+    //   get: () => this._baseThinking + (this._tempModifiers.thinking || 0),
+    //   set: (val: number) => { this._baseThinking = val; },
+    //   enumerable: true
+    // });
+    //
+    // Object.defineProperty(this, "coding", {
+    //   get: () => this._baseCoding + (this._tempModifiers.coding || 0),
+    //   set: (val: number) => { this._baseCoding = val; },
+    //   enumerable: true
+    // });
+    //
+    // Object.defineProperty(this, "mental", {
+    //   get: () => this._baseMental + (this._tempModifiers.mental || 0),
+    //   set: (val: number) => { this._baseMental = val; },
+    //   enumerable: true
+    // });
 
     this.talents = new Set();
-    this.knowledge_ds = KNOWLEDGE_ABILITY_START;
-    this.knowledge_graph = KNOWLEDGE_ABILITY_START;
-    this.knowledge_string = KNOWLEDGE_ABILITY_START;
-    this.knowledge_math = KNOWLEDGE_ABILITY_START;
-    this.knowledge_dp = KNOWLEDGE_ABILITY_START;
+    this.knowledge = {
+      DP: KNOWLEDGE_ABILITY_START,
+      DS: KNOWLEDGE_ABILITY_START,
+      Math: KNOWLEDGE_ABILITY_START,
+      Graph: KNOWLEDGE_ABILITY_START,
+      String: KNOWLEDGE_ABILITY_START,
+    };
     this.pressure = 20;
     this.comfort = 50;
     this.comfort_modifier = 0;
@@ -132,36 +129,31 @@ export class Student {
     this.visuals = Student.ensureVisualAssets();
   }
 
-  applyTempModifier(attribute: keyof TempModifiers, value: number): void{
-    if(typeof this._tempModifiers[attribute] !== "undefined"){
-      this._tempModifiers[attribute] = value;
-    }
-  }
+  // applyTempModifier(attribute: keyof TempModifiers, value: number): void{
+  //   if(typeof this._tempModifiers[attribute] !== "undefined"){
+  //     this._tempModifiers[attribute] = value;
+  //   }
+  // }
 
-  clearTempModifiers(): void{
-    for(const key in this._tempModifiers){
-      this._tempModifiers[key as keyof TempModifiers] = 0;
-    }
-    this._talent_backup = {};
-    this._talent_state = {};
-  }
+  // clearTempModifiers(): void{
+  //   for(const key in this._tempModifiers){
+  //     this._tempModifiers[key as keyof TempModifiers] = 0;
+  //   }
+  //   this._talent_backup = {};
+  //   this._talent_state = {};
+  // }
 
-  getTempModifier(attribute: keyof TempModifiers): number{
-    return this._tempModifiers[attribute] || 0;
-  }
+  // getTempModifier(attribute: keyof TempModifiers): number{
+  //   return this._tempModifiers[attribute] || 0;
+  // }
 
   getAbilityAvg(): number{
     return (this.thinking + this.coding + this.mental) / 3.0;
   }
 
   getKnowledgeTotal(): number{
-    return (
-      this.knowledge_ds +
-      this.knowledge_graph +
-      this.knowledge_string +
-      this.knowledge_math +
-      this.knowledge_dp
-    ) / 5.0;
+    return Object.values(this.knowledge).reduce((acc, current) => acc + current, 0)
+      / Object.keys(this.knowledge).length;
   }
 
   getComprehensiveAbility(): number{
@@ -209,52 +201,33 @@ export class Student {
     return Math.floor(base_gain * learning_efficiency * facility_bonus * sick_penalty);
   }
 
-  getKnowledgeByType(type: KnowledgeType): number{
-    if(type === KNOWLEDGE.DS) return this.knowledge_ds;
-    if(type === KNOWLEDGE.Graph) return this.knowledge_graph;
-    if(type === KNOWLEDGE.String) return this.knowledge_string;
-    if(type === KNOWLEDGE.Math) return this.knowledge_math;
-    if(type === KNOWLEDGE.DP || type === "DP" || type === "动态规划") return this.knowledge_dp;
-    return 0;
-  }
-
   addKnowledge(type: KnowledgeType, amount: number): void{
     const safeAmount = Math.min(Math.max(0, amount), 100);
     if(safeAmount !== amount && Math.abs(amount) > 0.01){
-      console.warn(`[addKnowledge] 学生${this.name} 知识点增幅异常: type=${String(type)}, 原值=${amount}, 限制后=${safeAmount}`);
+      console.warn(`[addKnowledge] 学生${this.name} 知识点增幅异常: type=${type}, 原值=${amount}, 限制后=${safeAmount}`);
     }
 
-    if(type === KNOWLEDGE.DS) this.knowledge_ds += safeAmount;
-    else if(type === KNOWLEDGE.Graph) this.knowledge_graph += safeAmount;
-    else if(type === KNOWLEDGE.String) this.knowledge_string += safeAmount;
-    else if(type === KNOWLEDGE.Math) this.knowledge_math += safeAmount;
-    else if(type === KNOWLEDGE.DP || type === "DP" || type === "动态规划") this.knowledge_dp += safeAmount;
+    this.knowledge[type] += safeAmount;
   }
 
   addThinking(amount: number): void{
-    if(typeof amount !== "number" || Math.abs(amount) < 1e-9) return;
-    const cur = Number(this.thinking || 0);
+    if(Math.abs(amount) < 1e-9) return;
+    const cur = this.thinking;
     let mult = 1.0;
-    if(typeof ABILITY_DECAY_THRESHOLD !== "undefined" && cur > ABILITY_DECAY_THRESHOLD){
+    if(cur > ABILITY_DECAY_THRESHOLD){
       mult = Math.min(1.0, ABILITY_DECAY_THRESHOLD / cur);
-    }else if(typeof ABILITY_DECAY_THRESHOLD === "undefined" && cur > 400){
-      mult = Math.min(1.0, 400.0 / cur);
     }
-    const applied = amount * mult;
-    this.thinking = cur + applied;
+    this.thinking += amount * mult;
   }
 
   addCoding(amount: number): void{
-    if(typeof amount !== "number" || Math.abs(amount) < 1e-9) return;
-    const cur = Number(this.coding || 0);
+    if(Math.abs(amount) < 1e-9) return;
+    const cur = this.coding;
     let mult = 1.0;
-    if(typeof ABILITY_DECAY_THRESHOLD !== "undefined" && cur > ABILITY_DECAY_THRESHOLD){
+    if(cur > ABILITY_DECAY_THRESHOLD){
       mult = Math.min(1.0, ABILITY_DECAY_THRESHOLD / cur);
-    }else if(typeof ABILITY_DECAY_THRESHOLD === "undefined" && cur > 400){
-      mult = Math.min(1.0, 400.0 / cur);
     }
-    const applied = amount * mult;
-    this.coding = cur + applied;
+    this.coding += amount * mult;
   }
 
   addTalent(talentName: string): void{

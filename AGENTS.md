@@ -13,5 +13,7 @@ OITrainer 3D migration status
 TODO
 
 - [x] Migrate basic enums and constants to `src/lib/enums.ts` and `src/lib/constants.ts`.
-- [ ] Migrate `Student` class to `src/core/Student.ts`.
-- [ ] Migrate `GameState` class to `src/core/GameState.ts`.
+- [x] Migrate `Student` class to `src/core/Student.ts`.
+- [x] Migrate the event system to `src/lib/enums.ts`.
+- [x] Migrate `Talent` to `src/core/Talents.ts` with an interface and the data (partially done, except for event handler).
+- [x] Migrate `GameState` class to `src/core/GameState.ts`.

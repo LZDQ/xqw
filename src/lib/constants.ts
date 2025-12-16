@@ -1,6 +1,6 @@
 /* constants.js - 拆分自原始主脚本的常量与省份数据 */
 /* =================== 常量（与 C++ 保持一致） =================== */
-import { COMPETITION_NAME, PROVINCE_STRENGTH, type CompetitionName, type ProvinceStrength } from "./enums.ts";
+import { type CompetitionName, type ProvinceStrength } from "./enums.ts";
 
 // 比赛定义
 export interface Competition {
@@ -38,40 +38,40 @@ export const WEAK_PROVINCE_TRAINING_QUALITY = 0.3;
 
 /* 比赛日程 */
 export const COMPETITION_SCHEDULE: readonly Competition[] = [
-  { week: 9, name: COMPETITION_NAME.CSP_S1, difficulty: 65, maxScore: 100, numProblems: 1 },
-  { week: 17, name: COMPETITION_NAME.CSP_S2, difficulty: 145, maxScore: 400, numProblems: 4 },
-  { week: 25, name: COMPETITION_NAME.NOIP, difficulty: 205, maxScore: 400, numProblems: 4 },
-  { week: 40, name: COMPETITION_NAME.PROVINCIAL, difficulty: 340, maxScore: 600, numProblems: 6 },
-  { week: 52, name: COMPETITION_NAME.NOI, difficulty: 460, maxScore: 700, numProblems: 7 },
+  { week: 9, name: "CSP_S1", difficulty: 65, maxScore: 100, numProblems: 1 },
+  { week: 17, name: "CSP_S2", difficulty: 145, maxScore: 400, numProblems: 4 },
+  { week: 25, name: "NOIP", difficulty: 205, maxScore: 400, numProblems: 4 },
+  { week: 40, name: "PROVINCIAL", difficulty: 340, maxScore: 600, numProblems: 6 },
+  { week: 52, name: "NOI", difficulty: 460, maxScore: 700, numProblems: 7 },
   // 国家集训队比赛（仅在第二年NOI金牌且接受后才会生效）
-  { week: 54, name: COMPETITION_NAME.CTT_DAY1_2, difficulty: 520, maxScore: 600, numProblems: 6, nationalTeam: true },
-  { week: 55, name: COMPETITION_NAME.CTT_DAY3_4, difficulty: 520, maxScore: 600, numProblems: 6, nationalTeam: true },
-  { week: 56, name: COMPETITION_NAME.CTS, difficulty: 590, maxScore: 800, numProblems: 8, nationalTeam: true },
-  { week: 57, name: COMPETITION_NAME.IOI, difficulty: 650, maxScore: 600, numProblems: 6, nationalTeam: true, subtasksPerProblem: 15 }
+  { week: 54, name: "CTT_DAY1_2", difficulty: 520, maxScore: 600, numProblems: 6, nationalTeam: true },
+  { week: 55, name: "CTT_DAY3_4", difficulty: 520, maxScore: 600, numProblems: 6, nationalTeam: true },
+  { week: 56, name: "CTS", difficulty: 590, maxScore: 800, numProblems: 8, nationalTeam: true },
+  { week: 57, name: "IOI", difficulty: 650, maxScore: 600, numProblems: 6, nationalTeam: true, subtasksPerProblem: 15 }
 ];
 
 // 正式比赛题目难度系数配置
 export type CompetitionDifficultyFactors = Record<CompetitionName, number[]>;
 
 export const COMPETITION_DIFFICULTY_FACTORS: CompetitionDifficultyFactors = {
-  [COMPETITION_NAME.CSP_S1]: [1.0],
-  [COMPETITION_NAME.CSP_S2]: [0.5, 1.0, 1.5, 2.0],
-  [COMPETITION_NAME.NOIP]: [0.5, 0.8, 1.5, 2.5],
-  [COMPETITION_NAME.PROVINCIAL]: [0.7, 0.7, 1.2, 1.5, 1.8, 1.8],
-  [COMPETITION_NAME.NOI]: [0.5, 0.8, 1.0, 1.2, 1.3, 1.3, 1.5],
-  [COMPETITION_NAME.CTT_DAY1_2]: [1.2, 1.2, 1.2, 1.5, 1.5, 1.5],
-  [COMPETITION_NAME.CTT_DAY3_4]: [1.2, 1.2, 1.2, 1.5, 1.5, 1.5],
-  [COMPETITION_NAME.CTS]: [1.0, 1.2, 1.2, 1.5, 1.5, 1.7, 1.7, 1.7],
-  [COMPETITION_NAME.IOI]: [0.8, 0.8, 1.2, 1.5, 1.8, 2.2]
+  CSP_S1: [1.0],
+  CSP_S2: [0.5, 1.0, 1.5, 2.0],
+  NOIP: [0.5, 0.8, 1.5, 2.5],
+  PROVINCIAL: [0.7, 0.7, 1.2, 1.5, 1.8, 1.8],
+  NOI: [0.5, 0.8, 1.0, 1.2, 1.3, 1.3, 1.5],
+  CTT_DAY1_2: [1.2, 1.2, 1.2, 1.5, 1.5, 1.5],
+  CTT_DAY3_4: [1.2, 1.2, 1.2, 1.5, 1.5, 1.5],
+  CTS: [1.0, 1.2, 1.2, 1.5, 1.5, 1.7, 1.7, 1.7],
+  IOI: [0.8, 0.8, 1.2, 1.5, 1.8, 2.2]
 };
 
 // 明确的比赛链顺序（用于链式晋级判断）
 export const COMPETITION_ORDER: readonly CompetitionName[] = [
-  COMPETITION_NAME.CSP_S1,
-  COMPETITION_NAME.CSP_S2,
-  COMPETITION_NAME.NOIP,
-  COMPETITION_NAME.PROVINCIAL,
-  COMPETITION_NAME.NOI
+  "CSP_S1",
+  "CSP_S2",
+  "NOIP",
+  "PROVINCIAL",
+  "NOI"
 ];
 
 export const OTHER_COUNTRY_MIN_ABILITY = 130;
@@ -81,59 +81,52 @@ export const IOI_SILVER_THRESHOLD = 0.65;
 export const IOI_BRONZE_THRESHOLD = 0.2;
 
 /* 晋级线基准 - 基于省份强弱的固定分数线（占总分百分比） */
-export interface CompetitionCutoff {
-  "强省": number;
-  "普通省": number;
-  "弱省": number;
-}
-
-export type CompetitionCutoffMap = Record<CompetitionName, CompetitionCutoff>;
-
+export type CompetitionCutoffMap = Record<CompetitionName, Record<ProvinceStrength, number>>;
 export const COMPETITION_BASE_CUTOFF: CompetitionCutoffMap = {
-  [COMPETITION_NAME.CSP_S1]: {
-    [PROVINCE_STRENGTH.STRONG]: 0.70,
-    [PROVINCE_STRENGTH.NORMAL]: 0.60,
-    [PROVINCE_STRENGTH.WEAK]: 0.50
+  CSP_S1: {
+    STRONG: 0.70,
+    NORMAL: 0.60,
+    WEAK: 0.50
   },
-  [COMPETITION_NAME.CSP_S2]: {
-    [PROVINCE_STRENGTH.STRONG]: 0.65,
-    [PROVINCE_STRENGTH.NORMAL]: 0.55,
-    [PROVINCE_STRENGTH.WEAK]: 0.45
+  CSP_S2: {
+    STRONG: 0.65,
+    NORMAL: 0.55,
+    WEAK: 0.45
   },
-  [COMPETITION_NAME.NOIP]: {
-    [PROVINCE_STRENGTH.STRONG]: 0.60,
-    [PROVINCE_STRENGTH.NORMAL]: 0.50,
-    [PROVINCE_STRENGTH.WEAK]: 0.40
+  NOIP: {
+    STRONG: 0.60,
+    NORMAL: 0.50,
+    WEAK: 0.40
   },
-  [COMPETITION_NAME.PROVINCIAL]: {
-    [PROVINCE_STRENGTH.STRONG]: 0.70,
-    [PROVINCE_STRENGTH.NORMAL]: 0.60,
-    [PROVINCE_STRENGTH.WEAK]: 0.50
+  PROVINCIAL: {
+    STRONG: 0.70,
+    NORMAL: 0.60,
+    WEAK: 0.50
   },
-  [COMPETITION_NAME.NOI]: {
-    [PROVINCE_STRENGTH.STRONG]: 0.80,
-    [PROVINCE_STRENGTH.NORMAL]: 0.80,
-    [PROVINCE_STRENGTH.WEAK]: 0.80
+  NOI: {
+    STRONG: 0.80,
+    NORMAL: 0.80,
+    WEAK: 0.80
   },
-  [COMPETITION_NAME.CTT_DAY1_2]: {
-    [PROVINCE_STRENGTH.STRONG]: 0.0,
-    [PROVINCE_STRENGTH.NORMAL]: 0.0,
-    [PROVINCE_STRENGTH.WEAK]: 0.0
+  CTT_DAY1_2: {
+    STRONG: 0.0,
+    NORMAL: 0.0,
+    WEAK: 0.0
   },
-  [COMPETITION_NAME.CTT_DAY3_4]: {
-    [PROVINCE_STRENGTH.STRONG]: 0.0,
-    [PROVINCE_STRENGTH.NORMAL]: 0.0,
-    [PROVINCE_STRENGTH.WEAK]: 0.0
+  CTT_DAY3_4: {
+    STRONG: 0.0,
+    NORMAL: 0.0,
+    WEAK: 0.0
   },
-  [COMPETITION_NAME.CTS]: {
-    [PROVINCE_STRENGTH.STRONG]: 0.0,
-    [PROVINCE_STRENGTH.NORMAL]: 0.0,
-    [PROVINCE_STRENGTH.WEAK]: 0.0
+  CTS: {
+    STRONG: 0.0,
+    NORMAL: 0.0,
+    WEAK: 0.0
   },
-  [COMPETITION_NAME.IOI]: {
-    [PROVINCE_STRENGTH.STRONG]: IOI_GOLD_THRESHOLD,
-    [PROVINCE_STRENGTH.NORMAL]: IOI_GOLD_THRESHOLD,
-    [PROVINCE_STRENGTH.WEAK]: IOI_GOLD_THRESHOLD
+  IOI: {
+    STRONG: IOI_GOLD_THRESHOLD,
+    NORMAL: IOI_GOLD_THRESHOLD,
+    WEAK: IOI_GOLD_THRESHOLD
   }
 };
 
@@ -228,11 +221,11 @@ export interface ContestGainRatio {
 export type ContestGainRatios = Record<string, ContestGainRatio>;
 
 export const CONTEST_GAIN_RATIOS: ContestGainRatios = {
-  [COMPETITION_NAME.CSP_S1]: { knowledge: 0.3, thinking: 0.3, coding: 0.3 },
-  [COMPETITION_NAME.CSP_S2]: { knowledge: 0.5, thinking: 0.5, coding: 0.5 },
-  [COMPETITION_NAME.NOIP]: { knowledge: 0.7, thinking: 0.7, coding: 0.7 },
-  [COMPETITION_NAME.PROVINCIAL]: { knowledge: 0.9, thinking: 0.9, coding: 0.9 },
-  [COMPETITION_NAME.NOI]: { knowledge: 1.0, thinking: 1.0, coding: 1.0 },
+  CSP_S1: { knowledge: 0.3, thinking: 0.3, coding: 0.3 },
+  CSP_S2: { knowledge: 0.5, thinking: 0.5, coding: 0.5 },
+  NOIP: { knowledge: 0.7, thinking: 0.7, coding: 0.7 },
+  PROVINCIAL: { knowledge: 0.9, thinking: 0.9, coding: 0.9 },
+  NOI: { knowledge: 1.0, thinking: 1.0, coding: 1.0 },
   online_low: { knowledge: 0.4, thinking: 0.4, coding: 0.4 },
   online_medium: { knowledge: 0.6, thinking: 0.6, coding: 0.6 },
   online_high: { knowledge: 0.85, thinking: 0.85, coding: 0.85 }
@@ -384,8 +377,6 @@ export interface Province {
   climate: ProvinceClimate;
 }
 
-export type ProvinceMap = Record<number, Province>;
-
 export function createDefaultClimate(isNorth: boolean, name: string): ProvinceClimate {
   const north: ProvinceClimate = {
     seasonalTemps: { spring: 12, summer: 26, autumn: 15, winter: -5 },
@@ -409,41 +400,41 @@ export function createDefaultClimate(isNorth: boolean, name: string): ProvinceCl
 }
 
 /* =========== 省份数据 =========== */
-export const PROVINCES: ProvinceMap = {
-  1: { name: "北京", type: PROVINCE_STRENGTH.STRONG, isNorth: true, baseBudget: STRONG_PROVINCE_BUDGET, trainingQuality: STRONG_PROVINCE_TRAINING_QUALITY, climate: null as unknown as ProvinceClimate },
-  2: { name: "重庆", type: PROVINCE_STRENGTH.STRONG, isNorth: false, baseBudget: STRONG_PROVINCE_BUDGET, trainingQuality: STRONG_PROVINCE_TRAINING_QUALITY, climate: null as unknown as ProvinceClimate },
-  3: { name: "湖南", type: PROVINCE_STRENGTH.STRONG, isNorth: false, baseBudget: STRONG_PROVINCE_BUDGET, trainingQuality: STRONG_PROVINCE_TRAINING_QUALITY, climate: null as unknown as ProvinceClimate },
-  4: { name: "广东", type: PROVINCE_STRENGTH.STRONG, isNorth: false, baseBudget: STRONG_PROVINCE_BUDGET, trainingQuality: STRONG_PROVINCE_TRAINING_QUALITY, climate: null as unknown as ProvinceClimate },
-  5: { name: "四川", type: PROVINCE_STRENGTH.STRONG, isNorth: false, baseBudget: STRONG_PROVINCE_BUDGET, trainingQuality: STRONG_PROVINCE_TRAINING_QUALITY, climate: null as unknown as ProvinceClimate },
-  6: { name: "浙江", type: PROVINCE_STRENGTH.STRONG, isNorth: false, baseBudget: STRONG_PROVINCE_BUDGET, trainingQuality: STRONG_PROVINCE_TRAINING_QUALITY, climate: null as unknown as ProvinceClimate },
-  7: { name: "上海", type: PROVINCE_STRENGTH.STRONG, isNorth: false, baseBudget: STRONG_PROVINCE_BUDGET, trainingQuality: STRONG_PROVINCE_TRAINING_QUALITY, climate: null as unknown as ProvinceClimate },
-  8: { name: "福建", type: PROVINCE_STRENGTH.STRONG, isNorth: false, baseBudget: STRONG_PROVINCE_BUDGET, trainingQuality: STRONG_PROVINCE_TRAINING_QUALITY, climate: null as unknown as ProvinceClimate },
-  9: { name: "江苏", type: PROVINCE_STRENGTH.STRONG, isNorth: false, baseBudget: STRONG_PROVINCE_BUDGET, trainingQuality: STRONG_PROVINCE_TRAINING_QUALITY, climate: null as unknown as ProvinceClimate },
-  10: { name: "山东", type: PROVINCE_STRENGTH.STRONG, isNorth: false, baseBudget: STRONG_PROVINCE_BUDGET, trainingQuality: STRONG_PROVINCE_TRAINING_QUALITY, climate: null as unknown as ProvinceClimate },
-  11: { name: "湖北", type: PROVINCE_STRENGTH.NORMAL, isNorth: false, baseBudget: NORMAL_PROVINCE_BUDGET, trainingQuality: NORMAL_PROVINCE_TRAINING_QUALITY, climate: null as unknown as ProvinceClimate },
-  12: { name: "江西", type: PROVINCE_STRENGTH.NORMAL, isNorth: false, baseBudget: NORMAL_PROVINCE_BUDGET, trainingQuality: NORMAL_PROVINCE_TRAINING_QUALITY, climate: null as unknown as ProvinceClimate },
-  13: { name: "河北", type: PROVINCE_STRENGTH.NORMAL, isNorth: true, baseBudget: NORMAL_PROVINCE_BUDGET, trainingQuality: NORMAL_PROVINCE_TRAINING_QUALITY, climate: null as unknown as ProvinceClimate },
-  14: { name: "香港", type: PROVINCE_STRENGTH.NORMAL, isNorth: false, baseBudget: NORMAL_PROVINCE_BUDGET, trainingQuality: NORMAL_PROVINCE_TRAINING_QUALITY, climate: null as unknown as ProvinceClimate },
-  15: { name: "陕西", type: PROVINCE_STRENGTH.NORMAL, isNorth: true, baseBudget: NORMAL_PROVINCE_BUDGET, trainingQuality: NORMAL_PROVINCE_TRAINING_QUALITY, climate: null as unknown as ProvinceClimate },
-  16: { name: "河南", type: PROVINCE_STRENGTH.NORMAL, isNorth: false, baseBudget: NORMAL_PROVINCE_BUDGET, trainingQuality: NORMAL_PROVINCE_TRAINING_QUALITY, climate: null as unknown as ProvinceClimate },
-  17: { name: "安徽", type: PROVINCE_STRENGTH.NORMAL, isNorth: false, baseBudget: NORMAL_PROVINCE_BUDGET, trainingQuality: NORMAL_PROVINCE_TRAINING_QUALITY, climate: null as unknown as ProvinceClimate },
-  18: { name: "黑龙江", type: PROVINCE_STRENGTH.NORMAL, isNorth: true, baseBudget: NORMAL_PROVINCE_BUDGET, trainingQuality: NORMAL_PROVINCE_TRAINING_QUALITY, climate: null as unknown as ProvinceClimate },
-  19: { name: "广西", type: PROVINCE_STRENGTH.NORMAL, isNorth: false, baseBudget: NORMAL_PROVINCE_BUDGET, trainingQuality: NORMAL_PROVINCE_TRAINING_QUALITY, climate: null as unknown as ProvinceClimate },
-  20: { name: "辽宁", type: PROVINCE_STRENGTH.NORMAL, isNorth: true, baseBudget: NORMAL_PROVINCE_BUDGET, trainingQuality: NORMAL_PROVINCE_TRAINING_QUALITY, climate: null as unknown as ProvinceClimate },
-  21: { name: "吉林", type: PROVINCE_STRENGTH.NORMAL, isNorth: true, baseBudget: NORMAL_PROVINCE_BUDGET, trainingQuality: NORMAL_PROVINCE_TRAINING_QUALITY, climate: null as unknown as ProvinceClimate },
-  22: { name: "天津", type: PROVINCE_STRENGTH.NORMAL, isNorth: true, baseBudget: NORMAL_PROVINCE_BUDGET, trainingQuality: NORMAL_PROVINCE_TRAINING_QUALITY, climate: null as unknown as ProvinceClimate },
-  23: { name: "山西", type: PROVINCE_STRENGTH.NORMAL, isNorth: true, baseBudget: NORMAL_PROVINCE_BUDGET, trainingQuality: NORMAL_PROVINCE_TRAINING_QUALITY, climate: null as unknown as ProvinceClimate },
-  24: { name: "贵州", type: PROVINCE_STRENGTH.NORMAL, isNorth: false, baseBudget: NORMAL_PROVINCE_BUDGET, trainingQuality: NORMAL_PROVINCE_TRAINING_QUALITY, climate: null as unknown as ProvinceClimate },
-  25: { name: "澳门", type: PROVINCE_STRENGTH.WEAK, isNorth: false, baseBudget: WEAK_PROVINCE_BUDGET, trainingQuality: WEAK_PROVINCE_TRAINING_QUALITY, climate: null as unknown as ProvinceClimate },
-  26: { name: "新疆", type: PROVINCE_STRENGTH.WEAK, isNorth: true, baseBudget: WEAK_PROVINCE_BUDGET, trainingQuality: WEAK_PROVINCE_TRAINING_QUALITY, climate: null as unknown as ProvinceClimate },
-  27: { name: "海南", type: PROVINCE_STRENGTH.WEAK, isNorth: false, baseBudget: WEAK_PROVINCE_BUDGET, trainingQuality: WEAK_PROVINCE_TRAINING_QUALITY, climate: null as unknown as ProvinceClimate },
-  28: { name: "内蒙古", type: PROVINCE_STRENGTH.WEAK, isNorth: true, baseBudget: WEAK_PROVINCE_BUDGET, trainingQuality: WEAK_PROVINCE_TRAINING_QUALITY, climate: null as unknown as ProvinceClimate },
-  29: { name: "云南", type: PROVINCE_STRENGTH.WEAK, isNorth: false, baseBudget: WEAK_PROVINCE_BUDGET, trainingQuality: WEAK_PROVINCE_TRAINING_QUALITY, climate: null as unknown as ProvinceClimate },
-  30: { name: "宁夏", type: PROVINCE_STRENGTH.WEAK, isNorth: true, baseBudget: WEAK_PROVINCE_BUDGET, trainingQuality: WEAK_PROVINCE_TRAINING_QUALITY, climate: null as unknown as ProvinceClimate },
-  31: { name: "甘肃", type: PROVINCE_STRENGTH.WEAK, isNorth: true, baseBudget: WEAK_PROVINCE_BUDGET, trainingQuality: WEAK_PROVINCE_TRAINING_QUALITY, climate: null as unknown as ProvinceClimate },
-  32: { name: "青海", type: PROVINCE_STRENGTH.WEAK, isNorth: true, baseBudget: WEAK_PROVINCE_BUDGET, trainingQuality: WEAK_PROVINCE_TRAINING_QUALITY, climate: null as unknown as ProvinceClimate },
-  33: { name: "西藏", type: PROVINCE_STRENGTH.WEAK, isNorth: true, baseBudget: WEAK_PROVINCE_BUDGET, trainingQuality: WEAK_PROVINCE_TRAINING_QUALITY, climate: null as unknown as ProvinceClimate }
-};
+export const PROVINCES: Province[] = [
+  { name: "北京", type: "STRONG", isNorth: true, baseBudget: STRONG_PROVINCE_BUDGET, trainingQuality: STRONG_PROVINCE_TRAINING_QUALITY, climate: null as unknown as ProvinceClimate },
+  { name: "重庆", type: "STRONG", isNorth: false, baseBudget: STRONG_PROVINCE_BUDGET, trainingQuality: STRONG_PROVINCE_TRAINING_QUALITY, climate: null as unknown as ProvinceClimate },
+  { name: "湖南", type: "STRONG", isNorth: false, baseBudget: STRONG_PROVINCE_BUDGET, trainingQuality: STRONG_PROVINCE_TRAINING_QUALITY, climate: null as unknown as ProvinceClimate },
+  { name: "广东", type: "STRONG", isNorth: false, baseBudget: STRONG_PROVINCE_BUDGET, trainingQuality: STRONG_PROVINCE_TRAINING_QUALITY, climate: null as unknown as ProvinceClimate },
+  { name: "四川", type: "STRONG", isNorth: false, baseBudget: STRONG_PROVINCE_BUDGET, trainingQuality: STRONG_PROVINCE_TRAINING_QUALITY, climate: null as unknown as ProvinceClimate },
+  { name: "浙江", type: "STRONG", isNorth: false, baseBudget: STRONG_PROVINCE_BUDGET, trainingQuality: STRONG_PROVINCE_TRAINING_QUALITY, climate: null as unknown as ProvinceClimate },
+  { name: "上海", type: "STRONG", isNorth: false, baseBudget: STRONG_PROVINCE_BUDGET, trainingQuality: STRONG_PROVINCE_TRAINING_QUALITY, climate: null as unknown as ProvinceClimate },
+  { name: "福建", type: "STRONG", isNorth: false, baseBudget: STRONG_PROVINCE_BUDGET, trainingQuality: STRONG_PROVINCE_TRAINING_QUALITY, climate: null as unknown as ProvinceClimate },
+  { name: "江苏", type: "STRONG", isNorth: false, baseBudget: STRONG_PROVINCE_BUDGET, trainingQuality: STRONG_PROVINCE_TRAINING_QUALITY, climate: null as unknown as ProvinceClimate },
+  { name: "山东", type: "STRONG", isNorth: false, baseBudget: STRONG_PROVINCE_BUDGET, trainingQuality: STRONG_PROVINCE_TRAINING_QUALITY, climate: null as unknown as ProvinceClimate },
+  { name: "湖北", type: "NORMAL", isNorth: false, baseBudget: NORMAL_PROVINCE_BUDGET, trainingQuality: NORMAL_PROVINCE_TRAINING_QUALITY, climate: null as unknown as ProvinceClimate },
+  { name: "江西", type: "NORMAL", isNorth: false, baseBudget: NORMAL_PROVINCE_BUDGET, trainingQuality: NORMAL_PROVINCE_TRAINING_QUALITY, climate: null as unknown as ProvinceClimate },
+  { name: "河北", type: "NORMAL", isNorth: true, baseBudget: NORMAL_PROVINCE_BUDGET, trainingQuality: NORMAL_PROVINCE_TRAINING_QUALITY, climate: null as unknown as ProvinceClimate },
+  { name: "香港", type: "NORMAL", isNorth: false, baseBudget: NORMAL_PROVINCE_BUDGET, trainingQuality: NORMAL_PROVINCE_TRAINING_QUALITY, climate: null as unknown as ProvinceClimate },
+  { name: "陕西", type: "NORMAL", isNorth: true, baseBudget: NORMAL_PROVINCE_BUDGET, trainingQuality: NORMAL_PROVINCE_TRAINING_QUALITY, climate: null as unknown as ProvinceClimate },
+  { name: "河南", type: "NORMAL", isNorth: false, baseBudget: NORMAL_PROVINCE_BUDGET, trainingQuality: NORMAL_PROVINCE_TRAINING_QUALITY, climate: null as unknown as ProvinceClimate },
+  { name: "安徽", type: "NORMAL", isNorth: false, baseBudget: NORMAL_PROVINCE_BUDGET, trainingQuality: NORMAL_PROVINCE_TRAINING_QUALITY, climate: null as unknown as ProvinceClimate },
+  { name: "黑龙江", type: "NORMAL", isNorth: true, baseBudget: NORMAL_PROVINCE_BUDGET, trainingQuality: NORMAL_PROVINCE_TRAINING_QUALITY, climate: null as unknown as ProvinceClimate },
+  { name: "广西", type: "NORMAL", isNorth: false, baseBudget: NORMAL_PROVINCE_BUDGET, trainingQuality: NORMAL_PROVINCE_TRAINING_QUALITY, climate: null as unknown as ProvinceClimate },
+  { name: "辽宁", type: "NORMAL", isNorth: true, baseBudget: NORMAL_PROVINCE_BUDGET, trainingQuality: NORMAL_PROVINCE_TRAINING_QUALITY, climate: null as unknown as ProvinceClimate },
+  { name: "吉林", type: "NORMAL", isNorth: true, baseBudget: NORMAL_PROVINCE_BUDGET, trainingQuality: NORMAL_PROVINCE_TRAINING_QUALITY, climate: null as unknown as ProvinceClimate },
+  { name: "天津", type: "NORMAL", isNorth: true, baseBudget: NORMAL_PROVINCE_BUDGET, trainingQuality: NORMAL_PROVINCE_TRAINING_QUALITY, climate: null as unknown as ProvinceClimate },
+  { name: "山西", type: "NORMAL", isNorth: true, baseBudget: NORMAL_PROVINCE_BUDGET, trainingQuality: NORMAL_PROVINCE_TRAINING_QUALITY, climate: null as unknown as ProvinceClimate },
+  { name: "贵州", type: "NORMAL", isNorth: false, baseBudget: NORMAL_PROVINCE_BUDGET, trainingQuality: NORMAL_PROVINCE_TRAINING_QUALITY, climate: null as unknown as ProvinceClimate },
+  { name: "澳门", type: "WEAK", isNorth: false, baseBudget: WEAK_PROVINCE_BUDGET, trainingQuality: WEAK_PROVINCE_TRAINING_QUALITY, climate: null as unknown as ProvinceClimate },
+  { name: "新疆", type: "WEAK", isNorth: true, baseBudget: WEAK_PROVINCE_BUDGET, trainingQuality: WEAK_PROVINCE_TRAINING_QUALITY, climate: null as unknown as ProvinceClimate },
+  { name: "海南", type: "WEAK", isNorth: false, baseBudget: WEAK_PROVINCE_BUDGET, trainingQuality: WEAK_PROVINCE_TRAINING_QUALITY, climate: null as unknown as ProvinceClimate },
+  { name: "内蒙古", type: "WEAK", isNorth: true, baseBudget: WEAK_PROVINCE_BUDGET, trainingQuality: WEAK_PROVINCE_TRAINING_QUALITY, climate: null as unknown as ProvinceClimate },
+  { name: "云南", type: "WEAK", isNorth: false, baseBudget: WEAK_PROVINCE_BUDGET, trainingQuality: WEAK_PROVINCE_TRAINING_QUALITY, climate: null as unknown as ProvinceClimate },
+  { name: "宁夏", type: "WEAK", isNorth: true, baseBudget: WEAK_PROVINCE_BUDGET, trainingQuality: WEAK_PROVINCE_TRAINING_QUALITY, climate: null as unknown as ProvinceClimate },
+  { name: "甘肃", type: "WEAK", isNorth: true, baseBudget: WEAK_PROVINCE_BUDGET, trainingQuality: WEAK_PROVINCE_TRAINING_QUALITY, climate: null as unknown as ProvinceClimate },
+  { name: "青海", type: "WEAK", isNorth: true, baseBudget: WEAK_PROVINCE_BUDGET, trainingQuality: WEAK_PROVINCE_TRAINING_QUALITY, climate: null as unknown as ProvinceClimate },
+  { name: "西藏", type: "WEAK", isNorth: true, baseBudget: WEAK_PROVINCE_BUDGET, trainingQuality: WEAK_PROVINCE_TRAINING_QUALITY, climate: null as unknown as ProvinceClimate }
+];
 
 for(const key in PROVINCES){
   const idx = Number(key);
