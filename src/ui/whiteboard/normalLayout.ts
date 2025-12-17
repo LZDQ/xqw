@@ -1,5 +1,29 @@
+import type * as THREEType from "three";
 import type { GameState } from "../../core/GameState.ts";
 import type { WhiteboardDisplay } from "../../scene/whiteboardDisplay.ts";
+
+export type ActionId = "TRAIN" | "RELAX" | "MOCK" | "CAMP" | "QUIT";
+
+export interface ActionSpec {
+  id: ActionId;
+  title: string;
+  description: string;
+}
+
+export interface ActionButton {
+  id: ActionId;
+  root: THREEType.Object3D;
+}
+
+export function getNormalActions(): ActionSpec[] {
+  return [
+    { id: "TRAIN", title: "训练", description: "安排学生进行专项训练，提高实力" },
+    { id: "RELAX", title: "娱乐", description: "放松娱乐，缓解压力，提高舒适度" },
+    { id: "MOCK", title: "模拟赛", description: "进行内部模拟比赛，检验训练成果" },
+    { id: "CAMP", title: "集训", description: "参加合适的外出集训，集中提升训练效率" },
+    { id: "QUIT", title: "辞职", description: "立即结束本赛季并进行结算" }
+  ];
+}
 
 export function renderNormalLayout(display: WhiteboardDisplay, gameState: GameState): void {
   display.render((ctx, canvas) => {
@@ -97,7 +121,112 @@ export function renderNormalLayout(display: WhiteboardDisplay, gameState: GameSt
 
     // Right: reserved for future 3D buttons / event-specific layouts.
     drawSectionTitle(ctx, "本周行动（每个行动持续 1 周）", rightX, top, accent);
+
+    const actions = getNormalActions();
+    const listTop = top + 46;
+    const listBottom = bottom;
+    const listH = listBottom - listTop;
+    const cardGap = 18;
+    const cardH = Math.floor((listH - cardGap * (actions.length - 1)) / actions.length);
+
+    let cardY = listTop;
+    for (const action of actions) {
+      drawCard(ctx, rightX, cardY, rightW, cardH);
+
+      ctx.fillStyle = text;
+      ctx.font = "700 28px system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif";
+      ctx.textBaseline = "top";
+      ctx.fillText(action.title, rightX + 22, cardY + 18);
+
+      ctx.fillStyle = muted;
+      ctx.font = "500 22px system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif";
+      const descMaxW = rightW - 44;
+      const descLines = wrapText(ctx, action.description, descMaxW);
+      let descY = cardY + 56;
+      for (const line of descLines.slice(0, 2)) {
+        ctx.fillText(line, rightX + 22, descY);
+        descY += 28;
+      }
+
+      cardY += cardH + cardGap;
+    }
   }, "normal");
+}
+
+export function createNormalActionButtons(
+  THREE: typeof THREEType,
+  display: WhiteboardDisplay
+): ActionButton[] {
+  const board = display.mesh.parent;
+  if (!board) return [];
+
+  const actions = getNormalActions();
+
+  // Map a "virtual layout" in meters to match the canvas layout proportions.
+  const boardW = display.width;
+  const boardH = display.height;
+
+  const headerH = boardH * 0.14;
+  const pad = boardH * 0.06;
+  const top = boardH / 2 - headerH - pad;
+  const bottom = -boardH / 2 + pad;
+  const contentH = top - bottom;
+
+  const gutter = boardW * 0.06;
+  const usableW = boardW - pad * 2 - gutter;
+  const leftW = usableW * 0.52;
+  const rightW = usableW - leftW;
+  const rightX0 = -boardW / 2 + pad + leftW + gutter;
+  const rightX1 = rightX0 + rightW;
+  const rightXCenter = (rightX0 + rightX1) / 2;
+
+  const listTop = top - 0.26; // section title height approximation
+  const listBottom = bottom;
+  const listH = listTop - listBottom;
+  const gap = 0.07;
+  const cardH = (listH - gap * (actions.length - 1)) / actions.length;
+  const cardW = rightW;
+
+  const depth = 0.08;
+  const buttons: ActionButton[] = [];
+  let y = listTop - cardH / 2;
+  for (const action of actions) {
+    const root = new THREE.Group();
+    root.name = `Button_${action.id}`;
+
+    const box = new THREE.Mesh(
+      new THREE.BoxGeometry(cardW * 0.98, cardH * 0.9, depth),
+      new THREE.MeshStandardMaterial({
+        color: 0xffffff,
+        roughness: 0.9,
+        metalness: 0.0,
+        transparent: true,
+        opacity: 0.12
+      })
+    );
+    box.position.set(0, 0, depth / 2 + 0.006);
+    box.userData.kind = "button";
+    box.userData.actionId = action.id;
+    box.userData.actionTitle = action.title;
+    root.userData.kind = "button";
+    root.userData.actionId = action.id;
+    root.userData.actionTitle = action.title;
+    root.add(box);
+
+    const edge = new THREE.LineSegments(
+      new THREE.EdgesGeometry(box.geometry),
+      new THREE.LineBasicMaterial({ color: 0x93c5fd, transparent: true, opacity: 0.85 })
+    );
+    edge.position.copy(box.position);
+    root.add(edge);
+
+    root.position.set(rightXCenter, y, 0);
+    board.add(root);
+    buttons.push({ id: action.id, root });
+    y -= cardH + gap;
+  }
+
+  return buttons;
 }
 
 function formatMoney(value: number): string {

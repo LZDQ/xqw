@@ -228,6 +228,7 @@ function renderSeat(
     player.rotation.y = Math.PI;
     attachStatusRing(THREE, player);
     tagPlayerHierarchy(player, `p${seat.seatId}`);
+    tagStudentName(player, student.name);
     root.add(player);
     playerMeshes.push(player);
   }
@@ -237,6 +238,13 @@ function tagPlayerHierarchy(root: THREEType.Object3D, playerId: string): void{
   root.userData.playerId = playerId;
   root.traverse(child => {
     child.userData.playerId = playerId;
+  });
+}
+
+function tagStudentName(root: THREEType.Object3D, name: string): void {
+  root.userData.studentName = name;
+  root.traverse((child) => {
+    child.userData.studentName = name;
   });
 }
 

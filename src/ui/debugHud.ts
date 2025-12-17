@@ -2,6 +2,7 @@ import type * as THREEType from "three";
 
 export interface DebugHUDController {
   update: () => void;
+  setTarget: (label: string) => void;
   dispose: () => void;
 }
 
@@ -19,16 +20,28 @@ export function initDebugHUD(parent: HTMLElement, camera: THREEType.Camera): Deb
       <span class="debug-hud__label">Eye</span>
       <span class="debug-hud__value" data-eye></span>
     </div>
+    <div class="debug-hud__row">
+      <span class="debug-hud__label">Target</span>
+      <span class="debug-hud__value" data-target></span>
+    </div>
   `;
 
   const eyeValue = container.querySelector<HTMLElement>("[data-eye]");
-  if (!eyeValue) {
+  const targetValue = container.querySelector<HTMLElement>("[data-target]");
+  if (!eyeValue || !targetValue) {
     throw new Error("Failed to initialize debug HUD");
   }
+
+  let targetLabel = "-";
+
+  const setTarget = (label: string): void => {
+    targetLabel = label || "-";
+  };
 
   const update = (): void => {
     const { x, y, z } = camera.position;
     eyeValue.textContent = `${fmt(x)}, ${fmt(y)}, ${fmt(z)}`;
+    targetValue.textContent = targetLabel;
   };
 
   const dispose = (): void => {
@@ -37,10 +50,9 @@ export function initDebugHUD(parent: HTMLElement, camera: THREEType.Camera): Deb
 
   parent.appendChild(container);
   update();
-  return { update, dispose };
+  return { update, setTarget, dispose };
 }
 
 function fmt(v: number): string {
   return v.toFixed(2);
 }
-
