@@ -146,12 +146,13 @@ function loadClassroomAssets(
     // Text-only "whiteboard": no GLTF model, only the CanvasTexture plane.
     const boardRoot = new THREE.Group();
     boardRoot.name = "TextBoard";
-    boardRoot.position.set(0, 2.1, -ROOM.depth / 2 + 0.35);
+    // Front wall is at z = -ROOM.depth / 2; push 1mm into the room to avoid z-fighting.
+    boardRoot.position.set(0, 2.0, -ROOM.depth / 2 + 0.001);
     scene.add(boardRoot);
 
     const display = createWhiteboardDisplay(THREE, boardRoot, {
-      width: 4.2,
-      height: 2.2,
+      width: 5.6,
+      height: 3.0,
       offset: new THREE.Vector3(0, 0, 0),
       canvasWidth: 1024,
       canvasHeight: 512
