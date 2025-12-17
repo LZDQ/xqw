@@ -1,6 +1,7 @@
 import * as THREE from "three";
 import { InputController } from "./controls/input.ts";
 import { getActiveGameState } from "./core/session.ts";
+import { initDebugHUD } from "./ui/debugHud.ts";
 import { initSettingsHUD, isSettingsOpen } from "./ui/settings.ts";
 import { showStartHUD } from "./ui/start.ts";
 import { initClassroom } from "./scene/classroom.ts";
@@ -44,6 +45,7 @@ function startScene(app: HTMLElement): void {
   const clock = new THREE.Clock();
   const input = new InputController(camera, renderer.domElement);
   initSettingsHUD(app, input);
+  const debugHud = initDebugHUD(app, camera);
 
   function onResize(): void {
     camera.aspect = window.innerWidth / window.innerHeight;
@@ -62,12 +64,19 @@ function startScene(app: HTMLElement): void {
   window.addEventListener("click", onClick);
 
   onResize();
-  ready.catch((err) => console.error("[acg3d] asset load error", err)).finally(animate);
+  ready
+    .then(() => {
+      const display = scene.userData.whiteboardDisplay as { setText?: (t: string) => void } | undefined;
+      display?.setText?.("Whiteboard OK\nCanvasTexture\n\n(Startup test message)");
+    })
+    .catch((err) => console.error("[acg3d] asset load error", err))
+    .finally(animate);
 
   function animate(): void {
     requestAnimationFrame(animate);
     const delta = clock.getDelta();
     input.update(delta);
+    debugHud.update();
     renderer.render(scene, camera);
   }
 }

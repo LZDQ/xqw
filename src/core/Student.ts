@@ -6,7 +6,7 @@ import {
   TextureLoader,
   UnsignedByteType
 } from "three";
-import { KNOWLEDGE, type KnowledgeType } from "../lib/enums.ts";
+import type { KnowledgeType } from "../lib/enums.ts";
 import {
   KNOWLEDGE_WEIGHT,
   ABILITY_WEIGHT,
@@ -44,9 +44,7 @@ const FALLBACK_STATUS_COLOR = 0x7cc5ff;
 
 export class Student {
   name: string;
-  // base attributes
-  private _baseThinking: number;
-  private _baseCoding: number;
+  // base attributes (mental is used for mental index calculation)
   private _baseMental: number;
   // in-contest attributes
   thinking!: number;
@@ -72,9 +70,10 @@ export class Student {
 
   constructor(name: string, thinking: number, coding: number, mental: number){
     this.name = name;
-    this._baseThinking = thinking;
-    this._baseCoding = coding;
     this._baseMental = mental;
+    this.thinking = thinking;
+    this.coding = coding;
+    this.mental = mental;
 
     this._tempModifiers = {
       thinking: 0,

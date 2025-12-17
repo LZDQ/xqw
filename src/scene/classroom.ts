@@ -2,6 +2,7 @@ import type * as THREEType from "three";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { clone as cloneSkinned } from "three/examples/jsm/utils/SkeletonUtils.js";
 import type { Student } from "../core/Student.ts";
+import { createWhiteboardDisplay, type WhiteboardDisplay } from "./whiteboardDisplay.ts";
 
 const ROOM = { width: 14, depth: 10, height: 4 };
 // Use root-relative paths so dev server/static builds serve public assets correctly.
@@ -10,11 +11,10 @@ const FALLBACK_TEXTURE = "/assets/textures/WOOD 1_0.jpeg";
 const MODEL_SCALE: Record<AssetKey, number> = {
   desk: 0.4,        // doubled to restore 2x sizing
   chair: 0.01,
-  player: 0.035,
-  whiteboard: 0.01
+  player: 0.035
 };
 
-type AssetKey = "desk" | "chair" | "player" | "whiteboard";
+type AssetKey = "desk" | "chair" | "player";
 
 interface Seat {
   seatId: number;
@@ -26,6 +26,7 @@ export interface ClassroomInitResult {
   scene: THREEType.Scene;
   ready: Promise<void>;
   playerMeshes: THREEType.Object3D[];
+  whiteboardDisplay: WhiteboardDisplay | null;
 }
 
 export function initClassroom(THREE: typeof THREEType, students: Student[]): ClassroomInitResult {
@@ -62,9 +63,10 @@ export function initClassroom(THREE: typeof THREEType, students: Student[]): Cla
 
   const playerMeshes: THREEType.Object3D[] = [];
   const seatLayout = buildSeatLayout();
-  const ready = loadClassroomAssets(THREE, scene, seatLayout, playerMeshes, students);
+  const whiteboardHolder: { display: WhiteboardDisplay | null } = { display: null };
+  const ready = loadClassroomAssets(THREE, scene, seatLayout, playerMeshes, students, whiteboardHolder);
 
-  return { scene, ready, playerMeshes };
+  return { scene, ready, playerMeshes, whiteboardDisplay: whiteboardHolder.display };
 }
 
 function makeWall(
@@ -105,7 +107,8 @@ function loadClassroomAssets(
   scene: THREEType.Scene,
   seats: Seat[],
   playerMeshes: THREEType.Object3D[],
-  students: Student[]
+  students: Student[],
+  whiteboardHolder: { display: WhiteboardDisplay | null }
 ): Promise<void> {
   const manager = new THREE.LoadingManager();
   manager.setURLModifier(url => {
@@ -121,8 +124,7 @@ function loadClassroomAssets(
   const assetsToLoad: Array<[AssetKey, string]> = [
     ["desk", "desk.glb"],
     ["chair", "chair.gltf"],
-    ["player", "nairong.glb"],
-    ["whiteboard", "whiteboard.glb"]
+    ["player", "nairong.glb"]
   ];
 
   const loadPromises = assetsToLoad.map(([key, file]) =>
@@ -141,15 +143,22 @@ function loadClassroomAssets(
       const prepared = prepareAsset(THREE, entry.gltf.scene, MODEL_SCALE[entry.key]);
       assets[entry.key] = prepared;
     });
-    if(assets.whiteboard){
-      const whiteboard = cloneAsset(assets.whiteboard);
-      const bounds = new THREE.Box3().setFromObject(whiteboard);
-      const halfHeight = (bounds.max.y - bounds.min.y) / 2;
-      const boardDepth = (bounds.max.z - bounds.min.z) / 2;
-      whiteboard.position.set(0, halfHeight + 0.35, -ROOM.depth / 2 + boardDepth);
-      whiteboard.rotation.y = Math.PI / 2;
-      scene.add(whiteboard);
-    }
+    // Text-only "whiteboard": no GLTF model, only the CanvasTexture plane.
+    const boardRoot = new THREE.Group();
+    boardRoot.name = "TextBoard";
+    boardRoot.position.set(0, 2.1, -ROOM.depth / 2 + 0.35);
+    scene.add(boardRoot);
+
+    const display = createWhiteboardDisplay(THREE, boardRoot, {
+      width: 4.2,
+      height: 2.2,
+      offset: new THREE.Vector3(0, 0, 0),
+      canvasWidth: 1024,
+      canvasHeight: 512
+    });
+    display.setText(`OI Trainer 3D\nStudents: ${students.length}\n\n(text-only board)`);
+    whiteboardHolder.display = display;
+    scene.userData.whiteboardDisplay = display;
     const studentBySeat = new Map<number, Student>();
     students.forEach((student) => {
       if (student.seatId) {
@@ -203,14 +212,14 @@ function renderSeat(
   if(assets.desk){
     const desk = cloneAsset(assets.desk);
     desk.rotation.y = Math.PI;
-    applyTextureIfMissing(THREE, desk, texture);
+    applyTextureIfMissing(desk, texture);
     root.add(desk);
   }
   if(assets.chair){
     const chair = cloneAsset(assets.chair);
     chair.position.set(0, 0, 0.7);
     chair.rotation.y = Math.PI;
-    applyTextureIfMissing(THREE, chair, texture);
+    applyTextureIfMissing(chair, texture);
     root.add(chair);
   }
   if(assets.player && student){
@@ -242,7 +251,6 @@ function attachStatusRing(THREE: typeof THREEType, player: THREEType.Object3D): 
 }
 
 function applyTextureIfMissing(
-  THREE: typeof THREEType,
   object: THREEType.Object3D,
   texture: THREEType.Texture
 ): void {

@@ -8,10 +8,8 @@ import {
   COMPUTER_EFFICIENCY_PER_LEVEL,
   EXTREME_COLD_THRESHOLD,
   EXTREME_HOT_THRESHOLD,
-  FACILITY_UPGRADE_COSTS,
   LIBRARY_EFFICIENCY_PER_LEVEL,
   MAX_COMPUTER_LEVEL,
-  MAX_LIBRARY_LEVEL,
   MAX_OTHER_FACILITY_LEVEL,
   NORMAL_PROVINCE_MAX_ABILITY,
   NORMAL_PROVINCE_MIN_ABILITY,
@@ -25,7 +23,6 @@ import {
   STRONG_PROVINCE_TRAINING_QUALITY,
   NORMAL_PROVINCE_TRAINING_QUALITY,
   WEAK_PROVINCE_TRAINING_QUALITY,
-  COMPETITION_ORDER,
   COST_MULTIPLIER,
   DORM_COMFORT_BONUS_PER_LEVEL
 } from "../lib/constants.ts";
@@ -37,7 +34,7 @@ import {
   type DifficultyConfig,
   type ProvinceConfig
 } from "../lib/config.ts";
-import { COMPETITION_NAME, type CompetitionName } from "../lib/enums.ts";
+import type { CompetitionName } from "../lib/enums.ts";
 
 class Facilities {
   computer = 1;
@@ -68,13 +65,13 @@ class Facilities {
     if (fac === "computer" || fac === "library") return MAX_COMPUTER_LEVEL;
     return MAX_OTHER_FACILITY_LEVEL;
   }
-  upgrade(fac: keyof Facilities): void {
-    if (fac === "computer") this.computer++;
-    else if (fac === "library") this.library++;
-    else if (fac === "ac") this.ac++;
-    else if (fac === "dorm") this.dorm++;
-    else if (fac === "canteen") this.canteen++;
-  }
+  // upgrade(fac: keyof Facilities): void {
+  //   if (fac === "computer") this.computer++;
+  //   else if (fac === "library") this.library++;
+  //   else if (fac === "ac") this.ac++;
+  //   else if (fac === "dorm") this.dorm++;
+  //   else if (fac === "canteen") this.canteen++;
+  // }
   getMaintenanceCost(): number {
     const total = this.computer + this.ac + this.dorm + this.library + this.canteen;
     return Math.floor(100 * Math.pow(total, 1.2));
