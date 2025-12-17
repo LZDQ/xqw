@@ -1,10 +1,12 @@
 import * as THREE from "three";
 import { InputController } from "./controls/input.ts";
-import { getActiveGameState } from "./core/session.ts";
+import type { GameState } from "./core/GameState.ts";
 import { initDebugHUD } from "./ui/debugHud.ts";
 import { initSettingsHUD, isSettingsOpen } from "./ui/settings.ts";
 import { showStartHUD } from "./ui/start.ts";
 import { initClassroom } from "./scene/classroom.ts";
+import { renderNormalLayout } from "./ui/whiteboard/normalLayout.ts";
+import type { WhiteboardDisplay } from "./scene/whiteboardDisplay.ts";
 
 async function bootstrap(): Promise<void> {
   const app = document.getElementById("app");
@@ -12,21 +14,16 @@ async function bootstrap(): Promise<void> {
     throw new Error("Missing #app container");
   }
 
-  await showStartHUD(app);
-  startScene(app);
+  const gameState = await showStartHUD(app);
+  startScene(app, gameState);
 }
 
-function startScene(app: HTMLElement): void {
-  const gameState = getActiveGameState();
-  if (!gameState) {
-    console.warn("[acg3d] starting scene without active game state");
-  } else {
-    console.info("[acg3d] game initialized", {
-      difficulty: gameState.difficulty,
-      provinceId: gameState.provinceId,
-      students: gameState.initialStudents
-    });
-  }
+function startScene(app: HTMLElement, gameState: GameState): void {
+  console.info("[acg3d] game initialized", {
+    difficulty: gameState.difficulty,
+    provinceId: gameState.provinceId,
+    students: gameState.initialStudents
+  });
 
   const renderer = new THREE.WebGLRenderer({ antialias: true });
   renderer.setPixelRatio(window.devicePixelRatio);
@@ -36,10 +33,8 @@ function startScene(app: HTMLElement): void {
   const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 50);
   camera.position.set(0, 1.6, 4);
 
-  const { scene, ready } = initClassroom(THREE, gameState?.students ?? []);
-  if (gameState) {
-    gameState.scene = scene;
-  }
+  const { scene, ready } = initClassroom(THREE, gameState.students);
+  gameState.scene = scene;
   scene.add(camera);
 
   const clock = new THREE.Clock();
@@ -66,8 +61,10 @@ function startScene(app: HTMLElement): void {
   onResize();
   ready
     .then(() => {
-      const display = scene.userData.whiteboardDisplay as { setText?: (t: string) => void } | undefined;
-      display?.setText?.("Whiteboard OK\nCanvasTexture\n\n(Startup test message)");
+      const whiteboardDisplay = scene.userData.whiteboardDisplay as WhiteboardDisplay | undefined;
+      if (!whiteboardDisplay) return;
+      // Normal layout (meta left, operations right). Other events can swap layouts later.
+      renderNormalLayout(whiteboardDisplay, gameState);
     })
     .catch((err) => console.error("[acg3d] asset load error", err))
     .finally(animate);

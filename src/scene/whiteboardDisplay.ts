@@ -3,7 +3,10 @@ import type * as THREEType from "three";
 export interface WhiteboardDisplay {
   mesh: THREEType.Mesh;
   canvas: HTMLCanvasElement;
+  width: number;
+  height: number;
   setText: (text: string) => void;
+  render: (draw: (ctx: CanvasRenderingContext2D, canvas: HTMLCanvasElement) => void, debugLabel?: string) => void;
 }
 
 export interface WhiteboardDisplayOptions {
@@ -20,8 +23,8 @@ export function createWhiteboardDisplay(
   options: WhiteboardDisplayOptions
 ): WhiteboardDisplay {
   const canvas = document.createElement("canvas");
-  canvas.width = options.canvasWidth ?? 1024;
-  canvas.height = options.canvasHeight ?? 512;
+  canvas.width = options.canvasWidth ?? 2048;
+  canvas.height = options.canvasHeight ?? 1024;
 
   const ctx = canvas.getContext("2d");
   if (!ctx) {
@@ -64,9 +67,25 @@ export function createWhiteboardDisplay(
     });
   };
 
-  setText("OI Trainer 3D\n(whiteboard display ready)");
+  const render = (
+    draw: (ctx: CanvasRenderingContext2D, canvas: HTMLCanvasElement) => void,
+    debugLabel = "layout"
+  ): void => {
+    draw(ctx, canvas);
+    texture.needsUpdate = true;
 
-  return { mesh, canvas, setText };
+    const worldPos = mesh.getWorldPosition(new THREE.Vector3());
+    console.info("[whiteboard] rendered", {
+      label: debugLabel,
+      displayWorld: { x: worldPos.x, y: worldPos.y, z: worldPos.z }
+    });
+  };
+
+  // Draw an empty board once so it is visible before any game text arrives.
+  drawBoard(ctx, canvas, "");
+  texture.needsUpdate = true;
+
+  return { mesh, canvas, width: options.width, height: options.height, setText, render };
 }
 
 function drawBoard(ctx: CanvasRenderingContext2D, canvas: HTMLCanvasElement, text: string): void {

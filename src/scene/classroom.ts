@@ -157,7 +157,6 @@ function loadClassroomAssets(
       canvasWidth: 1024,
       canvasHeight: 512
     });
-    display.setText(`OI Trainer 3D\nStudents: ${students.length}\n\n(text-only board)`);
     whiteboardHolder.display = display;
     scene.userData.whiteboardDisplay = display;
     const studentBySeat = new Map<number, Student>();
