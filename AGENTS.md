@@ -22,3 +22,4 @@ TODO
 BUG
 
 - [x] Sensitivity added. ~~Mouse sensitivity normal on Mac but too slow on Arch Linux.~~
+- [ ] When not in fullscreen mode, perspective rotation keeps going downward each update, probably because the center for calculating offset is not the same for adjusting mouse. This is probably Three.js's fault, but we will fix it later.

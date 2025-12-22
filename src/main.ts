@@ -5,7 +5,7 @@ import { initDebugHUD } from "./ui/debugHud.ts";
 import { initSettingsHUD, isSettingsOpen } from "./ui/settings.ts";
 import { showStartHUD } from "./ui/start.ts";
 import { initClassroom } from "./scene/classroom.ts";
-import { createNormalActionButtons, renderNormalLayout } from "./ui/whiteboard/normalLayout.ts";
+import { renderNormalLayout } from "./ui/whiteboard/normalLayout.ts";
 import type { WhiteboardDisplay } from "./scene/whiteboardDisplay.ts";
 
 async function bootstrap(): Promise<void> {
@@ -19,11 +19,7 @@ async function bootstrap(): Promise<void> {
 }
 
 function startScene(app: HTMLElement, gameState: GameState): void {
-  console.info("[acg3d] game initialized", {
-    difficulty: gameState.difficulty,
-    provinceId: gameState.provinceId,
-    students: gameState.initialStudents
-  });
+  console.info("game initialized");
 
   const renderer = new THREE.WebGLRenderer({ antialias: true });
   renderer.setPixelRatio(window.devicePixelRatio);
@@ -34,6 +30,7 @@ function startScene(app: HTMLElement, gameState: GameState): void {
   camera.position.set(0, 1.6, 4);
 
   const pickTargets: THREE.Object3D[] = [];
+  ensureCrosshair(app);
 
   const { scene, ready, playerMeshes } = initClassroom(THREE, gameState.students);
   gameState.scene = scene;
@@ -47,7 +44,7 @@ function startScene(app: HTMLElement, gameState: GameState): void {
   const debugHud = initDebugHUD(app, camera);
   const raycaster = new THREE.Raycaster();
   const ndcCenter = new THREE.Vector2(0, 0);
-  let currentHit: { kind: "student" | "button"; label: string; target: THREE.Object3D } | null = null;
+  let currentHit: { kind: "student"; label: string; target: THREE.Object3D } | null = null;
 
   function onResize(): void {
     camera.aspect = window.innerWidth / window.innerHeight;
@@ -62,31 +59,12 @@ function startScene(app: HTMLElement, gameState: GameState): void {
       return;
     }
     if (!currentHit) return;
-    if (currentHit.kind === "button") {
-      console.info("[acg3d] button clicked", currentHit.label);
-      pressButton(currentHit.target);
-    }
   }
 
   window.addEventListener("resize", onResize);
   window.addEventListener("click", onClick);
 
   onResize();
-  ready
-    .then(() => {
-      const whiteboardDisplay = scene.userData.whiteboardDisplay as WhiteboardDisplay | undefined;
-      if (!whiteboardDisplay) return;
-      // Normal layout (meta left, operations right). Other events can swap layouts later.
-      renderNormalLayout(whiteboardDisplay, gameState);
-      const existing = scene.userData.whiteboardButtons as Array<{ root: THREE.Object3D }> | undefined;
-      existing?.forEach((b) => b.root.removeFromParent());
-      const buttons = createNormalActionButtons(THREE, whiteboardDisplay);
-      scene.userData.whiteboardButtons = buttons;
-      buttons.forEach((b) => pickTargets.push(b.root));
-      pickTargets.push(...(scene.userData.playerMeshes as THREE.Object3D[] | undefined ?? []));
-    })
-    .catch((err) => console.error("[acg3d] asset load error", err))
-    .finally(animate);
 
   function animate(): void {
     requestAnimationFrame(animate);
@@ -97,6 +75,17 @@ function startScene(app: HTMLElement, gameState: GameState): void {
     debugHud.update();
     renderer.render(scene, camera);
   }
+
+  ready
+    .then(() => {
+      const whiteboardDisplay = scene.userData.whiteboardDisplay as WhiteboardDisplay | undefined;
+      if (!whiteboardDisplay) return;
+      // Normal layout (meta left, operations right). Other events can swap layouts later.
+      renderNormalLayout(whiteboardDisplay, gameState);
+      pickTargets.push(...(scene.userData.playerMeshes as THREE.Object3D[] | undefined ?? []));
+    })
+    .catch((err) => console.error("asset load error", err))
+    .finally(animate);
 }
 
 function pickTarget(
@@ -104,7 +93,7 @@ function pickTarget(
   ndc: THREE.Vector2,
   camera: THREE.Camera,
   targets: THREE.Object3D[]
-): { kind: "student" | "button"; label: string; target: THREE.Object3D } | null {
+): { kind: "student"; label: string; target: THREE.Object3D } | null {
   raycaster.setFromCamera(ndc, camera);
   const hits = raycaster.intersectObjects(targets, true);
   for (const hit of hits) {
@@ -114,18 +103,9 @@ function pickTarget(
   return null;
 }
 
-function describePick(obj: THREE.Object3D): { kind: "student" | "button"; label: string; target: THREE.Object3D } | null {
+function describePick(obj: THREE.Object3D): { kind: "student"; label: string; target: THREE.Object3D } | null {
   let cur: THREE.Object3D | null = obj;
   while (cur) {
-    const kind = cur.userData.kind as string | undefined;
-    if (kind === "button") {
-      const root = findButtonRoot(cur);
-      const title =
-        (root.userData.actionTitle as string | undefined) ??
-        (root.userData.actionId as string | undefined) ??
-        "Unknown";
-      return { kind: "button", label: `Button ${title}`, target: root };
-    }
     const studentName = cur.userData.studentName as string | undefined;
     if (studentName) {
       return { kind: "student", label: `Student ${studentName}`, target: cur };
@@ -135,48 +115,13 @@ function describePick(obj: THREE.Object3D): { kind: "student" | "button"; label:
   return null;
 }
 
-function pressButton(target: THREE.Object3D): void {
-  const root = findButtonRoot(target);
-  if (!root) return;
-
-  const pressDepth = 0.05;
-  const pressDurationMs = 120;
-  const releaseDurationMs = 160;
-
-  const startZ = root.position.z;
-  const downZ = startZ - pressDepth;
-
-  const animate = (from: number, to: number, duration: number, done?: () => void): void => {
-    const start = performance.now();
-    const tick = (now: number): void => {
-      const t = Math.min(1, (now - start) / duration);
-      const eased = t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
-      root!.position.z = from + (to - from) * eased;
-      if (t < 1) {
-        requestAnimationFrame(tick);
-      } else {
-        done?.();
-      }
-    };
-    requestAnimationFrame(tick);
-  };
-
-  animate(startZ, downZ, pressDurationMs, () => animate(downZ, startZ, releaseDurationMs));
-}
-
-function findButtonRoot(from: THREE.Object3D): THREE.Object3D | null {
-  // Prefer sinking the whole button group (so thickness + edges move together).
-  let cur: THREE.Object3D | null = from;
-  let best: THREE.Object3D | null = null;
-  while (cur) {
-    if (cur.userData.kind === "button") {
-      best = cur;
-    }
-    cur = cur.parent;
-  }
-  return best;
-}
-
 bootstrap().catch((err) => {
   console.error("[acg3d] failed to start", err);
 });
+
+function ensureCrosshair(parent: HTMLElement): void {
+  if (document.getElementById("crosshair")) return;
+  const crosshair = document.createElement("div");
+  crosshair.id = "crosshair";
+  parent.appendChild(crosshair);
+}

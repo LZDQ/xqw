@@ -13,7 +13,7 @@ const TRANSPARENT_PIXEL =
 const MODEL_SCALE: Record<AssetKey, number> = {
   desk: 0.4,        // doubled to restore 2x sizing
   chair: 0.01,
-  player: 0.035
+  player: 1.0
 };
 
 type AssetKey = "desk" | "chair" | "player";
@@ -128,7 +128,7 @@ function loadClassroomAssets(
 
   const assetsToLoad: Array<[AssetKey, string]> = [
     ["desk", "desk.glb"],
-    ["chair", "chair.gltf"],
+    ["chair", "chair.glb"],
     ["player", "nairong.glb"]
   ];
 
@@ -181,6 +181,7 @@ function prepareAsset(THREE: typeof THREEType, scene: THREEType.Object3D, scale 
   scene.traverse(child => {
     const mesh = child as THREEType.Mesh;
     if(mesh.isMesh){
+      console.debug(child, mesh);
       const lowerName = (mesh.name || "").toLowerCase();
       const mat = mesh.material as THREEType.Material | null;
       const matName = (mat?.name || "").toLowerCase();
@@ -237,7 +238,7 @@ function renderSeat(
   }
   if(assets.player && student){
     const player = cloneAsset(assets.player);
-    player.position.set(0, 0, 0.35);
+    player.position.set(0, 0.85, 0.80);
     player.rotation.y = Math.PI;
     attachStatusRing(THREE, player);
     tagPlayerHierarchy(player, `p${seat.seatId}`);
