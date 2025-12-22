@@ -33,9 +33,13 @@ function startScene(app: HTMLElement, gameState: GameState): void {
   const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 50);
   camera.position.set(0, 1.6, 4);
 
-  const { scene, ready } = initClassroom(THREE, gameState.students);
+  const pickTargets: THREE.Object3D[] = [];
+
+  const { scene, ready, playerMeshes } = initClassroom(THREE, gameState.students);
   gameState.scene = scene;
   scene.add(camera);
+  scene.userData.playerMeshes = playerMeshes;
+  pickTargets.push(...playerMeshes);
 
   const clock = new THREE.Clock();
   const input = new InputController(camera, renderer.domElement);
@@ -76,7 +80,10 @@ function startScene(app: HTMLElement, gameState: GameState): void {
       renderNormalLayout(whiteboardDisplay, gameState);
       const existing = scene.userData.whiteboardButtons as Array<{ root: THREE.Object3D }> | undefined;
       existing?.forEach((b) => b.root.removeFromParent());
-      scene.userData.whiteboardButtons = createNormalActionButtons(THREE, whiteboardDisplay);
+      const buttons = createNormalActionButtons(THREE, whiteboardDisplay);
+      scene.userData.whiteboardButtons = buttons;
+      buttons.forEach((b) => pickTargets.push(b.root));
+      pickTargets.push(...(scene.userData.playerMeshes as THREE.Object3D[] | undefined ?? []));
     })
     .catch((err) => console.error("[acg3d] asset load error", err))
     .finally(animate);
@@ -85,7 +92,7 @@ function startScene(app: HTMLElement, gameState: GameState): void {
     requestAnimationFrame(animate);
     const delta = clock.getDelta();
     input.update(delta);
-    currentHit = pickTarget(raycaster, ndcCenter, camera, scene);
+    currentHit = pickTargets.length > 0 ? pickTarget(raycaster, ndcCenter, camera, pickTargets) : null;
     debugHud.setTarget(currentHit?.label ?? "-");
     debugHud.update();
     renderer.render(scene, camera);
@@ -96,10 +103,10 @@ function pickTarget(
   raycaster: THREE.Raycaster,
   ndc: THREE.Vector2,
   camera: THREE.Camera,
-  scene: THREE.Scene
+  targets: THREE.Object3D[]
 ): { kind: "student" | "button"; label: string; target: THREE.Object3D } | null {
   raycaster.setFromCamera(ndc, camera);
-  const hits = raycaster.intersectObjects(scene.children, true);
+  const hits = raycaster.intersectObjects(targets, true);
   for (const hit of hits) {
     const info = describePick(hit.object);
     if (info) return info;

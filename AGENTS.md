@@ -21,4 +21,4 @@ TODO
 
 BUG
 
-- [ ] Mouse sensitivity normal on Mac but too slow on Arch Linux.
+- [x] Sensitivity added. ~~Mouse sensitivity normal on Mac but too slow on Arch Linux.~~

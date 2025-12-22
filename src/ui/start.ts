@@ -1,6 +1,7 @@
 import { GameState } from "../core/GameState.ts";
 import { setActiveGameState } from "../core/session.ts";
 import { DIFFICULTIES, PROVINCES } from "../lib/config.ts";
+import { PROVINCE_STRENGTH } from "../lib/enums.ts";
 
 function clampStudents(value: number): number {
   if (Number.isNaN(value)) return 5;
@@ -19,24 +20,12 @@ function renderDifficultyOptions(select: HTMLSelectElement): void {
 
 function renderProvinces(select: HTMLSelectElement): void {
   PROVINCES.forEach((province) => {
-    const tag = province.type === "STRONG" ? "强省" : province.type === "WEAK" ? "弱省" : "普通";
+    const tag = PROVINCE_STRENGTH[province.type];
     const option = document.createElement("option");
     option.value = String(province.id);
     option.textContent = `${province.name}（${tag}）`;
     select.appendChild(option);
   });
-}
-
-function updateDifficultyHint(
-  difficultySelect: HTMLSelectElement,
-  hintEl: HTMLElement | null
-): void {
-  if (!hintEl) return;
-  const value = Number.parseInt(difficultySelect.value, 10);
-  const difficulty = DIFFICULTIES.find((d) => d.id === value);
-  hintEl.textContent = difficulty
-    ? `${difficulty.name}：${difficulty.description}`
-    : "选择开局难度";
 }
 
 export async function showStartHUD(parent: HTMLElement): Promise<GameState> {
@@ -50,7 +39,6 @@ export async function showStartHUD(parent: HTMLElement): Promise<GameState> {
         <label class="field">
           <span>难度</span>
           <select id="start-difficulty" name="difficulty"></select>
-          <small id="difficulty-hint"></small>
         </label>
         <label class="field">
           <span>所在省份</span>
@@ -69,7 +57,6 @@ export async function showStartHUD(parent: HTMLElement): Promise<GameState> {
   const difficultySelect = overlay.querySelector<HTMLSelectElement>("#start-difficulty");
   const provinceSelect = overlay.querySelector<HTMLSelectElement>("#start-province");
   const numStudentsInput = overlay.querySelector<HTMLInputElement>("#start-num-students");
-  const hintEl = overlay.querySelector<HTMLElement>("#difficulty-hint");
   const form = overlay.querySelector<HTMLFormElement>("form");
 
   if (!difficultySelect || !provinceSelect || !numStudentsInput || !form) {
@@ -78,9 +65,6 @@ export async function showStartHUD(parent: HTMLElement): Promise<GameState> {
 
   renderDifficultyOptions(difficultySelect);
   renderProvinces(provinceSelect);
-  updateDifficultyHint(difficultySelect, hintEl);
-
-  difficultySelect.addEventListener("change", () => updateDifficultyHint(difficultySelect, hintEl));
 
   numStudentsInput.addEventListener("blur", () => {
     numStudentsInput.value = String(clampStudents(Number(numStudentsInput.value)));
