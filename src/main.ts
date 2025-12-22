@@ -46,7 +46,7 @@ function startScene(app: HTMLElement, gameState: GameState): void {
   app.appendChild(renderer.domElement);
   app.appendChild(cssRenderer.domElement);
 
-  const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 50);
+  const camera = new THREE.PerspectiveCamera(30, window.innerWidth / window.innerHeight, 0.1, 50);
   camera.position.set(0, 1.6, 4);
 
   const pickTargets: THREE.Object3D[] = [];

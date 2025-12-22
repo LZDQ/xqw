@@ -107,12 +107,12 @@ canvas {
   position: absolute;
   top: 50%;
   left: 50%;
-  width: 12px;
-  height: 12px;
-  margin-left: -6px;
-  margin-top: -6px;
+  width: 16px;
+  height: 16px;
+  margin-left: -8px;
+  margin-top: -8px;
   pointer-events: none;
-  opacity: 0.7;
+  opacity: 0.95;
   z-index: 5;
 }
 
@@ -120,22 +120,23 @@ canvas {
 #crosshair::after {
   content: "";
   position: absolute;
-  background: #e9edf1;
+  background: #0f172a;
+  box-shadow: 0 0 2px rgba(0, 0, 0, 0.35);
 }
 
 #crosshair::before {
   left: 50%;
   top: 0;
-  width: 1px;
-  height: 12px;
+  width: 2px;
+  height: 16px;
   transform: translateX(-50%);
 }
 
 #crosshair::after {
   top: 50%;
   left: 0;
-  width: 12px;
-  height: 1px;
+  width: 16px;
+  height: 2px;
   transform: translateY(-50%);
 }
 

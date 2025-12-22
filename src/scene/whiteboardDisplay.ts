@@ -1,6 +1,7 @@
 import { CSS3DObject } from "three/examples/jsm/renderers/CSS3DRenderer.js";
 import type * as THREEType from "three";
 import type { ActionType } from "../lib/enums.ts";
+import { createBoardDom } from "../ui/whiteboard/BoardDom.tsx";
 
 export interface WhiteboardActionRect {
   id: ActionType;
@@ -30,7 +31,6 @@ export interface WhiteboardDisplayOptions {
   position: THREEType.Vector3;
   rotation?: THREEType.Euler;
   domWidth?: number;
-  src?: string;
 }
 
 const ACTION_DOM_ID: Record<ActionType, string> = {
@@ -56,14 +56,12 @@ export function createWhiteboardDisplay(
   container.style.boxShadow = "0 12px 32px rgba(0,0,0,0.2)";
   container.style.background = "#111";
 
-  const iframe = document.createElement("iframe");
-  iframe.src = options.src ?? "/base-game/game.html?embedded=1";
-  iframe.sandbox = "allow-same-origin";
-  iframe.style.width = "100%";
-  iframe.style.height = "100%";
-  iframe.style.border = "0";
-  iframe.style.pointerEvents = "none";
-  container.appendChild(iframe);
+  const board = createBoardDom();
+  board.style.width = "100%";
+  board.style.height = "100%";
+  board.style.overflow = "hidden";
+  board.style.pointerEvents = "none";
+  container.appendChild(board);
 
   const object = new CSS3DObject(container);
   object.name = "WhiteboardDOM";
@@ -76,27 +74,22 @@ export function createWhiteboardDisplay(
   object.scale.setScalar(scale);
 
   const ready = new Promise<WhiteboardMetrics>((resolve) => {
-    const fallback = (): void => {
-      resolve({
-        containerWidth: domWidth,
-        containerHeight: domHeight,
-        actions: []
-      });
-    };
+    // Measure layout using an offscreen clone so we don't block rendering on the CSS3D attachment.
+    const measureHost = document.createElement("div");
+    measureHost.style.position = "absolute";
+    measureHost.style.left = "-99999px";
+    measureHost.style.top = "-99999px";
+    measureHost.style.width = `${domWidth}px`;
+    measureHost.style.height = `${domHeight}px`;
+    const clone = board.cloneNode(true) as HTMLElement;
+    measureHost.appendChild(clone);
+    document.body.appendChild(measureHost);
 
-    const timer = window.setTimeout(fallback, 2000);
-
-    iframe.addEventListener("load", () => {
-      window.clearTimeout(timer);
-      const doc = iframe.contentDocument;
-      if (!doc || !doc.body) {
-        fallback();
-        return;
-      }
-      const bodyRect = doc.body.getBoundingClientRect();
+    requestAnimationFrame(() => {
+      const bodyRect = clone.getBoundingClientRect();
       const actions: WhiteboardActionRect[] = [];
       (Object.keys(ACTION_DOM_ID) as ActionType[]).forEach((id) => {
-        const el = doc.getElementById(ACTION_DOM_ID[id]);
+        const el = clone.querySelector<HTMLElement>(`#${ACTION_DOM_ID[id]}`);
         if (!el) return;
         const rect = el.getBoundingClientRect();
         actions.push({
@@ -107,6 +100,8 @@ export function createWhiteboardDisplay(
           height: rect.height
         });
       });
+
+      measureHost.remove();
       resolve({
         containerWidth: bodyRect.width || domWidth,
         containerHeight: bodyRect.height || domHeight,

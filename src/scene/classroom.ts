@@ -309,8 +309,12 @@ function buildActionHotspots(
     const w = (rect.width / metrics.containerWidth) * boardWidth;
     const h = (rect.height / metrics.containerHeight) * boardHeight;
 
+    const geometry = new THREE.BoxGeometry(w, h, depth);
+    if (geometry.computeBoundsTree) {
+      geometry.computeBoundsTree();
+    }
     const box = new THREE.Mesh(
-      new THREE.BoxGeometry(w, h, depth),
+      geometry,
       new THREE.MeshBasicMaterial({
         color: 0x4a86ff,
         transparent: true,
