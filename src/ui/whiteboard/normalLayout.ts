@@ -1,17 +1,16 @@
 import type * as THREEType from "three";
 import type { GameState } from "../../core/GameState.ts";
 import type { WhiteboardDisplay } from "../../scene/whiteboardDisplay.ts";
-
-export type ActionId = "TRAIN" | "RELAX" | "MOCK" | "CAMP" | "QUIT";
+import type { ActionType } from "../../lib/enums.ts";
 
 export interface ActionSpec {
-  id: ActionId;
+  id: ActionType;
   title: string;
   description: string;
 }
 
 export interface ActionButton {
-  id: ActionId;
+  id: ActionType;
   root: THREEType.Object3D;
 }
 
@@ -21,7 +20,6 @@ export function getNormalActions(): ActionSpec[] {
     { id: "RELAX", title: "娱乐", description: "放松娱乐，缓解压力，提高舒适度" },
     { id: "MOCK", title: "模拟赛", description: "进行内部模拟比赛，检验训练成果" },
     { id: "CAMP", title: "集训", description: "参加合适的外出集训，集中提升训练效率" },
-    { id: "QUIT", title: "辞职", description: "立即结束本赛季并进行结算" }
   ];
 }
 

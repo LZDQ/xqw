@@ -5,7 +5,6 @@ export interface WhiteboardDisplay {
   canvas: HTMLCanvasElement;
   width: number;
   height: number;
-  setText: (text: string) => void;
   render: (draw: (ctx: CanvasRenderingContext2D, canvas: HTMLCanvasElement) => void, debugLabel?: string) => void;
 }
 
@@ -43,9 +42,6 @@ export function createWhiteboardDisplay(
     transparent: true,
     opacity: 1,
     toneMapped: false,
-    // Render "on top" of the board to avoid being hidden by the GLTF surface due to z-fighting / depth.
-    depthTest: false,
-    depthWrite: false
   });
 
   const geometry = new THREE.PlaneGeometry(options.width, options.height);
@@ -56,17 +52,6 @@ export function createWhiteboardDisplay(
   mesh.position.copy(options.offset);
   parent.add(mesh);
 
-  const setText = (text: string): void => {
-    drawBoard(ctx, canvas, text);
-    texture.needsUpdate = true;
-
-    const worldPos = mesh.getWorldPosition(new THREE.Vector3());
-    console.info("[whiteboard] rendered text", {
-      textPreview: text.slice(0, 120),
-      displayWorld: { x: worldPos.x, y: worldPos.y, z: worldPos.z }
-    });
-  };
-
   const render = (
     draw: (ctx: CanvasRenderingContext2D, canvas: HTMLCanvasElement) => void,
     debugLabel = "layout"
@@ -74,76 +59,14 @@ export function createWhiteboardDisplay(
     draw(ctx, canvas);
     texture.needsUpdate = true;
 
-    const worldPos = mesh.getWorldPosition(new THREE.Vector3());
-    console.info("[whiteboard] rendered", {
-      label: debugLabel,
-      displayWorld: { x: worldPos.x, y: worldPos.y, z: worldPos.z }
-    });
+    // const worldPos = mesh.getWorldPosition(new THREE.Vector3());
+    // console.debug("[whiteboard] rendered", {
+    //   label: debugLabel,
+    //   displayWorld: { x: worldPos.x, y: worldPos.y, z: worldPos.z }
+    // });
   };
 
-  // Draw an empty board once so it is visible before any game text arrives.
-  drawBoard(ctx, canvas, "");
   texture.needsUpdate = true;
 
-  return { mesh, canvas, width: options.width, height: options.height, setText, render };
-}
-
-function drawBoard(ctx: CanvasRenderingContext2D, canvas: HTMLCanvasElement, text: string): void {
-  const w = canvas.width;
-  const h = canvas.height;
-
-  ctx.clearRect(0, 0, w, h);
-
-  ctx.fillStyle = "#fbfdff";
-  ctx.fillRect(0, 0, w, h);
-
-  ctx.strokeStyle = "#2b2f36";
-  ctx.lineWidth = 6;
-  ctx.strokeRect(3, 3, w - 6, h - 6);
-
-  const pad = 50;
-  const maxWidth = w - pad * 2;
-  const lineHeight = 74;
-
-  ctx.fillStyle = "#0f172a";
-  ctx.font = "64px system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif";
-  ctx.textBaseline = "top";
-
-  const lines = wrapText(ctx, text, maxWidth);
-  let y = pad;
-  for (const line of lines) {
-    if (y + lineHeight > h - pad) break;
-    ctx.fillText(line, pad, y);
-    y += lineHeight;
-  }
-
-  ctx.fillStyle = "#475569";
-  ctx.font = "28px system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif";
-  ctx.fillText("Click to lock mouse, WASD to move", pad, h - pad - 34);
-}
-
-function wrapText(ctx: CanvasRenderingContext2D, text: string, maxWidth: number): string[] {
-  const rawLines = text.split("\n");
-  const out: string[] = [];
-
-  for (const rawLine of rawLines) {
-    if (!rawLine) {
-      out.push("");
-      continue;
-    }
-
-    let line = "";
-    for (const ch of Array.from(rawLine)) {
-      const next = line + ch;
-      if (ctx.measureText(next).width > maxWidth && line.length > 0) {
-        out.push(line);
-        line = ch;
-      } else {
-        line = next;
-      }
-    }
-    out.push(line);
-  }
-
-  return out;
+  return { mesh, canvas, width: options.width, height: options.height, render };
 }

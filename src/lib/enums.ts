@@ -65,3 +65,11 @@ export const EVENTS: readonly EventType[] = [
   { name: "冰与火之舞", description: "学生使用机械键盘大力游玩冰与火之舞", kind: "perStudent" },
   { name: "约跑", description: "学生晚上去操场跑步", kind: "perStudent" },
 ] as const;
+
+export const ACTIONS = {
+  TRAIN: "训练",
+  RELAX: "放假",
+  MOCK: "模拟赛",
+  CAMP: "外出集训",
+} as const;
+export type ActionType = keyof typeof ACTIONS;
