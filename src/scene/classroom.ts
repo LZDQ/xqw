@@ -8,8 +8,6 @@ const ROOM = { width: 14, depth: 10, height: 4 };
 // Use root-relative paths so dev server/static builds serve public assets correctly.
 const MODEL_BASE = "/assets/models/";
 const FALLBACK_TEXTURE = "/assets/textures/WOOD 1_0.jpeg";
-const TRANSPARENT_PIXEL =
-  "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR4nGMAAQAABQABDQottAAAAABJRU5ErkJggg==";
 const MODEL_SCALE: Record<AssetKey, number> = {
   desk: 0.4,        // doubled to restore 2x sizing
   chair: 0.01,
@@ -113,15 +111,6 @@ function loadClassroomAssets(
   whiteboardHolder: { display: WhiteboardDisplay | null }
 ): Promise<void> {
   const manager = new THREE.LoadingManager();
-  manager.setURLModifier(url => {
-    if(url.endsWith("textures/shadow.png")){
-      return TRANSPARENT_PIXEL;
-    }
-    if(url.endsWith("textures/diffuse.png")){
-      return FALLBACK_TEXTURE;
-    }
-    return url;
-  });
   const loader = new GLTFLoader(manager);
   loader.setPath(MODEL_BASE);
   loader.setResourcePath(MODEL_BASE);
@@ -182,18 +171,12 @@ function prepareAsset(THREE: typeof THREEType, scene: THREEType.Object3D, scale 
     const mesh = child as THREEType.Mesh;
     if(mesh.isMesh){
       console.debug(child, mesh);
-      const lowerName = (mesh.name || "").toLowerCase();
-      const mat = mesh.material as THREEType.Material | null;
-      const matName = (mat?.name || "").toLowerCase();
-      if (lowerName.includes("shadow") || matName.includes("shadow")) {
-        mesh.visible = false;
-        return;
-      }
-      stripShadowTextures(mat);
       mesh.castShadow = false;
       mesh.receiveShadow = false;
       mesh.visible = true;
       mesh.frustumCulled = false;
+      if (mesh.geometry)
+        mesh.geometry.computeBoundsTree();
     }
   });
   scene.scale.setScalar(scale);
@@ -281,27 +264,10 @@ function applyTextureIfMissing(
     if (mesh.isMesh) {
       const mat = mesh.material as THREEType.MeshStandardMaterial;
       const matName = (mat?.name || "").toLowerCase();
-      stripShadowTextures(mat);
       if (mat && !mat.map && !matName.includes("shadow")) {
         mat.map = texture;
         mat.needsUpdate = true;
       }
     }
-  });
-}
-
-function stripShadowTextures(material?: THREEType.Material | THREEType.Material[]): void {
-  const materials = Array.isArray(material) ? material : material ? [material] : [];
-  materials.forEach((mat) => {
-    const stdMat = mat as THREEType.MeshStandardMaterial;
-    const maps: Array<keyof THREEType.MeshStandardMaterial> = ["map", "lightMap", "aoMap", "emissiveMap"];
-    maps.forEach((key) => {
-      const tex = stdMat[key] as THREEType.Texture | undefined;
-      const src = (tex?.image as { src?: string } | undefined)?.src?.toLowerCase?.();
-      if (src && src.includes("shadow")) {
-        stdMat[key] = null as never;
-        stdMat.needsUpdate = true;
-      }
-    });
   });
 }

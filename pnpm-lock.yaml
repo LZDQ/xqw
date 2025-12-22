@@ -11,6 +11,9 @@ importers:
       three:
         specifier: ^0.182.0
         version: 0.182.0
+      three-mesh-bvh:
+        specifier: ^0.9.4
+        version: 0.9.4(three@0.182.0)
     devDependencies:
       '@types/three':
         specifier: ^0.182.0
@@ -361,6 +364,11 @@ packages:
     resolution: {integrity: sha512-UXWMKhLOwVKb728IUtQPXxfYU+usdybtUrK/8uGE8CQMvrhOpwvzDBwj0QhSL7MQc7vIsISBG8VQ8+IDQxpfQA==}
     engines: {node: '>=0.10.0'}
 
+  three-mesh-bvh@0.9.4:
+    resolution: {integrity: sha512-+y6xLS6k5LWkNNhYsTgKXBC2D9r/z0swiehVHYhZZ8AOhaKDRCWKsN94ctV5Xy7xA4Xbnv4LKYzf7epRLPT6oQ==}
+    peerDependencies:
+      three: '>= 0.159.0'
+
   three@0.182.0:
     resolution: {integrity: sha512-GbHabT+Irv+ihI1/f5kIIsZ+Ef9Sl5A1Y7imvS5RQjWgtTPfPnZ43JmlYI7NtCRDK9zir20lQpfg8/9Yd02OvQ==}
 
@@ -662,6 +670,10 @@ snapshots:
       fsevents: 2.3.3
 
   source-map-js@1.2.1: {}
+
+  three-mesh-bvh@0.9.4(three@0.182.0):
+    dependencies:
+      three: 0.182.0
 
   three@0.182.0: {}
 

@@ -7,6 +7,14 @@ import { showStartHUD } from "./ui/start.ts";
 import { initClassroom } from "./scene/classroom.ts";
 import { renderNormalLayout } from "./ui/whiteboard/normalLayout.ts";
 import type { WhiteboardDisplay } from "./scene/whiteboardDisplay.ts";
+import {
+	computeBoundsTree, disposeBoundsTree, acceleratedRaycast,
+} from 'three-mesh-bvh';
+
+// three-mesh-bvh patch
+THREE.BufferGeometry.prototype.computeBoundsTree = computeBoundsTree;
+THREE.BufferGeometry.prototype.disposeBoundsTree = disposeBoundsTree;
+THREE.Mesh.prototype.raycast = acceleratedRaycast;
 
 async function bootstrap(): Promise<void> {
   const app = document.getElementById("app");
@@ -66,13 +74,16 @@ function startScene(app: HTMLElement, gameState: GameState): void {
 
   onResize();
 
+  let animateCount = 0, deltaCount = 0;
   function animate(): void {
     requestAnimationFrame(animate);
     const delta = clock.getDelta();
+    animateCount++;
+    deltaCount += delta;
     input.update(delta);
     currentHit = pickTargets.length > 0 ? pickTarget(raycaster, ndcCenter, camera, pickTargets) : null;
     debugHud.setTarget(currentHit?.label ?? "-");
-    debugHud.update();
+    debugHud.update(animateCount);
     renderer.render(scene, camera);
   }
 
