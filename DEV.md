@@ -1,10 +1,9 @@
 # Developer Notes (OI Trainer 3D)
 
-## Whiteboard Text Display (CanvasTexture)
+## Whiteboard Display (CSS3D + base-game DOM)
 
-The classroom uses a **text-only board** (no GLTF whiteboard model). A dynamic “screen” is rendered via `CanvasTexture` on a plane mesh placed near the front wall.
-
-This is intentionally **not** DOM-based: the board text is drawn onto an offscreen `<canvas>`, uploaded to the GPU as a texture, then rendered on a plane in 3D.
+The whiteboard now uses a CSS3D overlay that renders the actual **base-game HTML/CSS** (an iframe of `base-game/game.html?embedded=1` with scripts sandboxed).
+The DOM is mapped into 3D space and scaled to the board dimensions; action cards are detected via measured DOM rects and mirrored with invisible 3D boxes for raycasts.
 
 ### Where It Is Implemented
 
@@ -13,45 +12,16 @@ This is intentionally **not** DOM-based: the board text is drawn onto an offscre
 
 ### How It Works
 
-1. Create an offscreen canvas (`1024x512` by default).
-2. Draw background + border + text via `CanvasRenderingContext2D`.
-3. Create `THREE.CanvasTexture(canvas)` and use it on a `MeshBasicMaterial`.
-4. Attach a `PlaneGeometry` mesh (`WhiteboardDisplay`) to a `TextBoard` group near the front wall, with a small Z offset to avoid z-fighting.
-5. When you update the text, redraw the canvas and set `texture.needsUpdate = true`.
-
-### How To Update The Whiteboard Text
-
-When the classroom finishes loading (after `ready` resolves), the display instance is stored in both places:
-
-- Returned as `whiteboardDisplay` from `initClassroom(...)`.
-- Also attached to the scene as `scene.userData.whiteboardDisplay` (convenient global access for later systems).
-
-Example usage (e.g. from `src/main.ts` after `initClassroom`):
-
-```ts
-const { scene, whiteboardDisplay, ready } = initClassroom(THREE, gameState.students);
-
-ready.then(() => {
-  whiteboardDisplay?.setText("Week 1\nChoose an action");
-});
-
-// or, if you only have the scene:
-const display = scene.userData.whiteboardDisplay as { setText: (t: string) => void } | undefined;
-ready.then(() => display?.setText("Hello from scene.userData"));
-```
+1. `createWhiteboardDisplay` builds a `<div>` + sandboxed `<iframe>` pointing at `base-game/game.html?embedded=1`.
+2. A `CSS3DObject` wraps the element, is scaled to `BOARD_SIZE` (5.6m x 3.0m), and placed on the front wall.
+3. On iframe load, DOM rects for the four action cards are measured and converted into invisible `BoxGeometry` meshes on the board for raycasting.
+4. The CSS3D scene is rendered with `CSS3DRenderer` stacked over the WebGL canvas; pointer events are disabled so pointer lock works as usual.
 
 ### Adjusting Size / Placement
 
-The display plane is positioned in the `TextBoard` group’s local space.
-
-If it appears too small/large or not aligned on the wall, tune the parameters in
-`src/scene/classroom.ts` where `TextBoard` and `createWhiteboardDisplay(...)` are created:
-
-- `width`, `height`: plane size in meters (relative to the whiteboard model’s bounding box).
-- `boardRoot.position`: world placement of the board (should sit near `z = -ROOM.depth/2 + epsilon`).
-- `offset`: local position (`x`, `y`, `z`) relative to the `TextBoard` group.
-
-If you see flickering on the board surface, increase the `offset.z` a bit (z-fighting).
+If it appears misaligned, tune `BOARD_SIZE` and the board position in `classroom.ts`.
+Action hitboxes are derived from DOM measurements; if the right column layout changes,
+update the DOM id mapping in `whiteboardDisplay.ts`.
 
 ## Object Hierarchy (Runtime)
 
@@ -64,8 +34,8 @@ This is the relevant scene graph shape after classroom assets load (simplified):
     - `AmbientLight`
     - `DirectionalLight`
     - `PointLight` (near board)
-  - `TextBoard` (group)
-    - `WhiteboardDisplay` (plane mesh with `CanvasTexture`)
+  - `WhiteboardRoot` (group on front wall)
+    - `Action` meshes (invisible boxes aligned to DOM cards)
   - `Seats` (many groups)
     - `SeatRoot` (group per seat)
       - `Desk` (cloned mesh)
@@ -74,6 +44,9 @@ This is the relevant scene graph shape after classroom assets load (simplified):
         - `StatusRing` (ring mesh)
 
 Note: the “Seats” grouping is conceptual; in code each seat is a `THREE.Group` added directly to the scene in `renderSeat(...)`.
+
+The CSS3D whiteboard DOM sits in a parallel `cssScene` and is rendered with `CSS3DRenderer`
+using the same camera, so its transform matches `WhiteboardRoot`.
 
 ## GameState Hierarchy
 

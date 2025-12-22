@@ -2,12 +2,14 @@ import type * as THREEType from "three";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { clone as cloneSkinned } from "three/examples/jsm/utils/SkeletonUtils.js";
 import type { Student } from "../core/Student.ts";
-import { createWhiteboardDisplay, type WhiteboardDisplay } from "./whiteboardDisplay.ts";
+import { ACTIONS } from "../lib/enums.ts";
+import { createWhiteboardDisplay, type WhiteboardDisplay, type WhiteboardMetrics } from "./whiteboardDisplay.ts";
 
 const ROOM = { width: 14, depth: 10, height: 4 };
 // Use root-relative paths so dev server/static builds serve public assets correctly.
 const MODEL_BASE = "/assets/models/";
 const FALLBACK_TEXTURE = "/assets/textures/WOOD 1_0.jpeg";
+const BOARD_SIZE = { width: 5.6, height: 3.0 };
 const MODEL_SCALE: Record<AssetKey, number> = {
   desk: 0.4,        // doubled to restore 2x sizing
   chair: 0.01,
@@ -27,10 +29,13 @@ export interface ClassroomInitResult {
   ready: Promise<void>;
   playerMeshes: THREEType.Object3D[];
   whiteboardDisplay: WhiteboardDisplay | null;
+  cssScene: THREEType.Scene;
+  actionTargets: THREEType.Object3D[];
 }
 
 export function initClassroom(THREE: typeof THREEType, students: Student[]): ClassroomInitResult {
   const scene = new THREE.Scene();
+  const cssScene = new THREE.Scene();
   scene.background = new THREE.Color(0xf5f7fb);
 
   const floorMap = new THREE.TextureLoader().load(FALLBACK_TEXTURE);
@@ -64,9 +69,11 @@ export function initClassroom(THREE: typeof THREEType, students: Student[]): Cla
   const playerMeshes: THREEType.Object3D[] = [];
   const seatLayout = buildSeatLayout();
   const whiteboardHolder: { display: WhiteboardDisplay | null } = { display: null };
-  const ready = loadClassroomAssets(THREE, scene, seatLayout, playerMeshes, students, whiteboardHolder);
+  const actionTargets: THREEType.Object3D[] = [];
+  scene.userData.actionTargets = actionTargets;
+  const ready = loadClassroomAssets(THREE, scene, cssScene, seatLayout, playerMeshes, students, whiteboardHolder, actionTargets);
 
-  return { scene, ready, playerMeshes, whiteboardDisplay: whiteboardHolder.display };
+  return { scene, cssScene, ready, playerMeshes, whiteboardDisplay: whiteboardHolder.display, actionTargets };
 }
 
 function makeWall(
@@ -105,10 +112,12 @@ function buildSeatLayout(): Seat[] {
 function loadClassroomAssets(
   THREE: typeof THREEType,
   scene: THREEType.Scene,
+  cssScene: THREEType.Scene,
   seats: Seat[],
   playerMeshes: THREEType.Object3D[],
   students: Student[],
-  whiteboardHolder: { display: WhiteboardDisplay | null }
+  whiteboardHolder: { display: WhiteboardDisplay | null },
+  actionTargets: THREEType.Object3D[]
 ): Promise<void> {
   const manager = new THREE.LoadingManager();
   const loader = new GLTFLoader(manager);
@@ -130,29 +139,29 @@ function loadClassroomAssets(
 
   const seatTexture = new THREE.TextureLoader(manager).load(FALLBACK_TEXTURE);
 
-  return Promise.all(loadPromises).then(results => {
+  const boardRoot = new THREE.Group();
+  boardRoot.name = "WhiteboardRoot";
+  boardRoot.position.set(0, 2.0, -ROOM.depth / 2 + 0.001);
+  scene.add(boardRoot);
+  scene.userData.whiteboardRoot = boardRoot;
+
+  const display = createWhiteboardDisplay(THREE, {
+    width: BOARD_SIZE.width,
+    height: BOARD_SIZE.height,
+    position: boardRoot.position.clone()
+  });
+  display.object.rotation.copy(boardRoot.rotation);
+  cssScene.add(display.object);
+  whiteboardHolder.display = display;
+  scene.userData.whiteboardDisplay = display;
+
+  const assetsReady = Promise.all(loadPromises).then(results => {
     const assets: Partial<Record<AssetKey, THREEType.Object3D>> = {};
     results.forEach(entry => {
       if(!entry) return;
       const prepared = prepareAsset(THREE, entry.gltf.scene, MODEL_SCALE[entry.key]);
       assets[entry.key] = prepared;
     });
-    // Text-only "whiteboard": no GLTF model, only the CanvasTexture plane.
-    const boardRoot = new THREE.Group();
-    boardRoot.name = "TextBoard";
-    // Front wall is at z = -ROOM.depth / 2; push 1mm into the room to avoid z-fighting.
-    boardRoot.position.set(0, 2.0, -ROOM.depth / 2 + 0.001);
-    scene.add(boardRoot);
-
-    const display = createWhiteboardDisplay(THREE, boardRoot, {
-      width: 5.6,
-      height: 3.0,
-      offset: new THREE.Vector3(0, 0, 0),
-      canvasWidth: 1024,
-      canvasHeight: 512
-    });
-    whiteboardHolder.display = display;
-    scene.userData.whiteboardDisplay = display;
     const studentBySeat = new Map<number, Student>();
     students.forEach((student) => {
       if (student.seatId) {
@@ -164,6 +173,16 @@ function loadClassroomAssets(
       renderSeat(THREE, scene, seat, assets, playerMeshes, seatTexture, occupant);
     });
   });
+
+  const actionsReady = display.ready.then((metrics) => {
+    const buttons = buildActionHotspots(THREE, boardRoot, BOARD_SIZE.width, BOARD_SIZE.height, metrics);
+    actionTargets.push(...buttons);
+    scene.userData.actionTargets = actionTargets;
+  }).catch((err) => {
+    console.error("[acg3d] failed to build action hotspots", err);
+  });
+
+  return Promise.all([assetsReady, actionsReady]).then(() => {});
 }
 
 function prepareAsset(THREE: typeof THREEType, scene: THREEType.Object3D, scale = 1): THREEType.Object3D{
@@ -270,4 +289,43 @@ function applyTextureIfMissing(
       }
     }
   });
+}
+
+function buildActionHotspots(
+  THREE: typeof THREEType,
+  boardRoot: THREEType.Object3D,
+  boardWidth: number,
+  boardHeight: number,
+  metrics: WhiteboardMetrics
+): THREEType.Object3D[] {
+  const targets: THREEType.Object3D[] = [];
+  const depth = 0.05;
+  metrics.actions.forEach((rect) => {
+    if (!rect.width || !rect.height) return;
+    const normCenterX = (rect.x + rect.width / 2) / metrics.containerWidth;
+    const normCenterY = (rect.y + rect.height / 2) / metrics.containerHeight;
+    const centerX = (normCenterX - 0.5) * boardWidth;
+    const centerY = (0.5 - normCenterY) * boardHeight;
+    const w = (rect.width / metrics.containerWidth) * boardWidth;
+    const h = (rect.height / metrics.containerHeight) * boardHeight;
+
+    const box = new THREE.Mesh(
+      new THREE.BoxGeometry(w, h, depth),
+      new THREE.MeshBasicMaterial({
+        color: 0x4a86ff,
+        transparent: true,
+        opacity: 0.12,
+        depthWrite: false
+      })
+    );
+    box.name = `Action_${rect.id}`;
+    box.position.set(centerX, centerY, depth / 2 + 0.01);
+    box.userData.kind = "action";
+    box.userData.actionId = rect.id;
+    box.userData.actionTitle = ACTIONS[rect.id];
+
+    boardRoot.add(box);
+    targets.push(box);
+  });
+  return targets;
 }

@@ -5,8 +5,7 @@ import { initDebugHUD } from "./ui/debugHud.ts";
 import { initSettingsHUD, isSettingsOpen } from "./ui/settings.ts";
 import { showStartHUD } from "./ui/start.ts";
 import { initClassroom } from "./scene/classroom.ts";
-import { renderNormalLayout } from "./ui/whiteboard/normalLayout.ts";
-import type { WhiteboardDisplay } from "./scene/whiteboardDisplay.ts";
+import { CSS3DRenderer } from "three/examples/jsm/renderers/CSS3DRenderer.js";
 import {
 	computeBoundsTree, disposeBoundsTree, acceleratedRaycast,
 } from 'three-mesh-bvh';
@@ -29,10 +28,23 @@ async function bootstrap(): Promise<void> {
 function startScene(app: HTMLElement, gameState: GameState): void {
   console.info("game initialized");
 
+  const cssRenderer = new CSS3DRenderer();
+  cssRenderer.setSize(window.innerWidth, window.innerHeight);
+  cssRenderer.domElement.style.position = "absolute";
+  cssRenderer.domElement.style.top = "0";
+  cssRenderer.domElement.style.left = "0";
+  cssRenderer.domElement.style.pointerEvents = "none";
+  cssRenderer.domElement.style.zIndex = "1";
+
   const renderer = new THREE.WebGLRenderer({ antialias: true });
   renderer.setPixelRatio(window.devicePixelRatio);
   renderer.setSize(window.innerWidth, window.innerHeight);
+  renderer.domElement.style.position = "absolute";
+  renderer.domElement.style.top = "0";
+  renderer.domElement.style.left = "0";
+  renderer.domElement.style.zIndex = "0";
   app.appendChild(renderer.domElement);
+  app.appendChild(cssRenderer.domElement);
 
   const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 50);
   camera.position.set(0, 1.6, 4);
@@ -40,7 +52,7 @@ function startScene(app: HTMLElement, gameState: GameState): void {
   const pickTargets: THREE.Object3D[] = [];
   ensureCrosshair(app);
 
-  const { scene, ready, playerMeshes } = initClassroom(THREE, gameState.students);
+  const { scene, cssScene, ready, playerMeshes } = initClassroom(THREE, gameState.students);
   gameState.scene = scene;
   scene.add(camera);
   scene.userData.playerMeshes = playerMeshes;
@@ -52,12 +64,13 @@ function startScene(app: HTMLElement, gameState: GameState): void {
   const debugHud = initDebugHUD(app, camera);
   const raycaster = new THREE.Raycaster();
   const ndcCenter = new THREE.Vector2(0, 0);
-  let currentHit: { kind: "student"; label: string; target: THREE.Object3D } | null = null;
+  let currentHit: { kind: "student" | "action"; label: string; target: THREE.Object3D } | null = null;
 
   function onResize(): void {
     camera.aspect = window.innerWidth / window.innerHeight;
     camera.updateProjectionMatrix();
     renderer.setSize(window.innerWidth, window.innerHeight);
+    cssRenderer.setSize(window.innerWidth, window.innerHeight);
   }
 
   function onClick(): void {
@@ -74,26 +87,25 @@ function startScene(app: HTMLElement, gameState: GameState): void {
 
   onResize();
 
-  let animateCount = 0, deltaCount = 0;
+  let animateCount = 0;
   function animate(): void {
     requestAnimationFrame(animate);
     const delta = clock.getDelta();
     animateCount++;
-    deltaCount += delta;
     input.update(delta);
     currentHit = pickTargets.length > 0 ? pickTarget(raycaster, ndcCenter, camera, pickTargets) : null;
     debugHud.setTarget(currentHit?.label ?? "-");
     debugHud.update(animateCount);
+    cssRenderer.render(cssScene, camera);
     renderer.render(scene, camera);
   }
 
   ready
     .then(() => {
-      const whiteboardDisplay = scene.userData.whiteboardDisplay as WhiteboardDisplay | undefined;
-      if (!whiteboardDisplay) return;
-      // Normal layout (meta left, operations right). Other events can swap layouts later.
-      renderNormalLayout(whiteboardDisplay, gameState);
-      pickTargets.push(...(scene.userData.playerMeshes as THREE.Object3D[] | undefined ?? []));
+      pickTargets.push(
+        ...(scene.userData.playerMeshes as THREE.Object3D[] | undefined ?? []),
+        ...(scene.userData.actionTargets as THREE.Object3D[] | undefined ?? [])
+      );
     })
     .catch((err) => console.error("asset load error", err))
     .finally(animate);
@@ -104,7 +116,7 @@ function pickTarget(
   ndc: THREE.Vector2,
   camera: THREE.Camera,
   targets: THREE.Object3D[]
-): { kind: "student"; label: string; target: THREE.Object3D } | null {
+): { kind: "student" | "action"; label: string; target: THREE.Object3D } | null {
   raycaster.setFromCamera(ndc, camera);
   const hits = raycaster.intersectObjects(targets, true);
   for (const hit of hits) {
@@ -114,9 +126,14 @@ function pickTarget(
   return null;
 }
 
-function describePick(obj: THREE.Object3D): { kind: "student"; label: string; target: THREE.Object3D } | null {
+function describePick(obj: THREE.Object3D): { kind: "student" | "action"; label: string; target: THREE.Object3D } | null {
   let cur: THREE.Object3D | null = obj;
   while (cur) {
+    const actionId = cur.userData.actionId as string | undefined;
+    const actionTitle = cur.userData.actionTitle as string | undefined;
+    if (actionId && actionTitle) {
+      return { kind: "action", label: `Action ${actionTitle}`, target: cur };
+    }
     const studentName = cur.userData.studentName as string | undefined;
     if (studentName) {
       return { kind: "student", label: `Student ${studentName}`, target: cur };
