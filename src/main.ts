@@ -5,6 +5,7 @@ import { initDebugHUD } from "./ui/debugHud.ts";
 import { initSettingsHUD, isSettingsOpen } from "./ui/settings.ts";
 import { showStartHUD } from "./ui/start.ts";
 import { initClassroom } from "./scene/classroom.ts";
+import type { ActionType } from "./lib/enums.ts";
 import { CSS3DRenderer } from "three/examples/jsm/renderers/CSS3DRenderer.js";
 import {
 	computeBoundsTree, disposeBoundsTree, acceleratedRaycast,
@@ -52,7 +53,7 @@ function startScene(app: HTMLElement, gameState: GameState): void {
   const pickTargets: THREE.Object3D[] = [];
   ensureCrosshair(app);
 
-  const { scene, cssScene, ready, playerMeshes } = initClassroom(THREE, gameState.students);
+  const { scene, cssScene, ready, playerMeshes, whiteboardDisplay, actionPanelTarget } = initClassroom(THREE, gameState.students);
   gameState.scene = scene;
   scene.add(camera);
   scene.userData.playerMeshes = playerMeshes;
@@ -80,6 +81,20 @@ function startScene(app: HTMLElement, gameState: GameState): void {
       return;
     }
     if (!currentHit) return;
+    if (currentHit.kind === "action") {
+      const actionId = currentHit.target.userData.actionId as ActionType | undefined;
+      const actionTitle = currentHit.target.userData.actionTitle as string | undefined;
+      console.debug("[acg3d] action click", { actionId, actionTitle });
+      if (actionId && whiteboardDisplay) {
+        whiteboardDisplay.showAction(actionId);
+        if (actionPanelTarget) {
+          actionPanelTarget.visible = true;
+          actionPanelTarget.userData.actionId = actionId;
+          actionPanelTarget.userData.actionTitle = actionTitle;
+        }
+      }
+      return;
+    }
   }
 
   window.addEventListener("resize", onResize);
@@ -106,6 +121,9 @@ function startScene(app: HTMLElement, gameState: GameState): void {
         ...(scene.userData.playerMeshes as THREE.Object3D[] | undefined ?? []),
         ...(scene.userData.actionTargets as THREE.Object3D[] | undefined ?? [])
       );
+      if (whiteboardDisplay) {
+        whiteboardDisplay.syncGameState(gameState);
+      }
     })
     .catch((err) => console.error("asset load error", err))
     .finally(animate);
@@ -144,7 +162,7 @@ function describePick(obj: THREE.Object3D): { kind: "student" | "action"; label:
 }
 
 bootstrap().catch((err) => {
-  console.error("[acg3d] failed to start", err);
+  console.error("failed to start", err);
 });
 
 function ensureCrosshair(parent: HTMLElement): void {

@@ -31,6 +31,7 @@ export interface ClassroomInitResult {
   whiteboardDisplay: WhiteboardDisplay | null;
   cssScene: THREEType.Scene;
   actionTargets: THREEType.Object3D[];
+  actionPanelTarget: THREEType.Object3D | null;
 }
 
 export function initClassroom(THREE: typeof THREEType, students: Student[]): ClassroomInitResult {
@@ -70,10 +71,11 @@ export function initClassroom(THREE: typeof THREEType, students: Student[]): Cla
   const seatLayout = buildSeatLayout();
   const whiteboardHolder: { display: WhiteboardDisplay | null } = { display: null };
   const actionTargets: THREEType.Object3D[] = [];
+  const actionPanelHolder: { target: THREEType.Object3D | null } = { target: null };
   scene.userData.actionTargets = actionTargets;
-  const ready = loadClassroomAssets(THREE, scene, cssScene, seatLayout, playerMeshes, students, whiteboardHolder, actionTargets);
+  const ready = loadClassroomAssets(THREE, scene, cssScene, seatLayout, playerMeshes, students, whiteboardHolder, actionTargets, actionPanelHolder);
 
-  return { scene, cssScene, ready, playerMeshes, whiteboardDisplay: whiteboardHolder.display, actionTargets };
+  return { scene, cssScene, ready, playerMeshes, whiteboardDisplay: whiteboardHolder.display, actionTargets, actionPanelTarget: actionPanelHolder.target };
 }
 
 function makeWall(
@@ -117,7 +119,8 @@ function loadClassroomAssets(
   playerMeshes: THREEType.Object3D[],
   students: Student[],
   whiteboardHolder: { display: WhiteboardDisplay | null },
-  actionTargets: THREEType.Object3D[]
+  actionTargets: THREEType.Object3D[],
+  actionPanelHolder: { target: THREEType.Object3D | null }
 ): Promise<void> {
   const manager = new THREE.LoadingManager();
   const loader = new GLTFLoader(manager);
@@ -174,13 +177,20 @@ function loadClassroomAssets(
     });
   });
 
-  const actionsReady = display.ready.then((metrics) => {
-    const buttons = buildActionHotspots(THREE, boardRoot, BOARD_SIZE.width, BOARD_SIZE.height, metrics);
-    actionTargets.push(...buttons);
-    scene.userData.actionTargets = actionTargets;
-  }).catch((err) => {
-    console.error("[acg3d] failed to build action hotspots", err);
-  });
+  const actionsReady = display.ready
+    .then((metrics) => {
+      const { buttons, actionPanel } = buildActionHotspots(THREE, boardRoot, BOARD_SIZE.width, BOARD_SIZE.height, metrics);
+      actionTargets.push(...buttons);
+      if (actionPanel) {
+        actionTargets.push(actionPanel);
+        actionPanelHolder.target = actionPanel;
+      }
+      scene.userData.actionTargets = actionTargets;
+      scene.userData.actionPanelTarget = actionPanelHolder.target;
+    })
+    .catch((err) => {
+      console.error("failed to build action hotspots", err);
+    });
 
   return Promise.all([assetsReady, actionsReady]).then(() => {});
 }
@@ -297,7 +307,7 @@ function buildActionHotspots(
   boardWidth: number,
   boardHeight: number,
   metrics: WhiteboardMetrics
-): THREEType.Object3D[] {
+): { buttons: THREEType.Object3D[]; actionPanel: THREEType.Object3D | null } {
   const targets: THREEType.Object3D[] = [];
   const depth = 0.05;
   metrics.actions.forEach((rect) => {
@@ -331,5 +341,36 @@ function buildActionHotspots(
     boardRoot.add(box);
     targets.push(box);
   });
-  return targets;
+
+  const panelRect = metrics.actionRect ?? metrics.weeklyRect;
+  let actionPanel: THREEType.Object3D | null = null;
+  if (panelRect) {
+    const normCenterX = (panelRect.x + panelRect.width / 2) / metrics.containerWidth;
+    const normCenterY = (panelRect.y + panelRect.height / 2) / metrics.containerHeight;
+    const centerX = (normCenterX - 0.5) * boardWidth;
+    const centerY = (0.5 - normCenterY) * boardHeight;
+    const w = (panelRect.width / metrics.containerWidth) * boardWidth;
+    const h = (panelRect.height / metrics.containerHeight) * boardHeight;
+    const geometry = new THREE.BoxGeometry(w, h, depth);
+    if (geometry.computeBoundsTree) geometry.computeBoundsTree();
+    const box = new THREE.Mesh(
+      geometry,
+      new THREE.MeshBasicMaterial({
+        color: 0x4a86ff,
+        transparent: true,
+        opacity: 0.05,
+        depthWrite: false
+      })
+    );
+    box.name = "ActionPanel";
+    box.position.set(centerX, centerY, depth / 2 + 0.02);
+    box.userData.kind = "action";
+    box.userData.actionId = null;
+    box.userData.actionTitle = null;
+    box.visible = false;
+    boardRoot.add(box);
+    actionPanel = box;
+  }
+
+  return { buttons: targets, actionPanel };
 }
