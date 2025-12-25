@@ -144,7 +144,7 @@ function loadClassroomAssets(
 
   const boardRoot = new THREE.Group();
   boardRoot.name = "WhiteboardRoot";
-  boardRoot.position.set(0, 2.0, -ROOM.depth / 2 + 0.001);
+  boardRoot.position.set(0, 2.5, -ROOM.depth / 2 + 0.001);
   scene.add(boardRoot);
   scene.userData.whiteboardRoot = boardRoot;
 
