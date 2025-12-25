@@ -111,8 +111,8 @@ function startScene(app: HTMLElement, gameState: GameState): void {
     currentHit = pickTargets.length > 0 ? pickTarget(raycaster, ndcCenter, camera, pickTargets) : null;
     debugHud.setTarget(currentHit?.label ?? "-");
     debugHud.update(animateCount);
-    cssRenderer.render(cssScene, camera);
     renderer.render(scene, camera);
+    cssRenderer.render(cssScene, camera);
   }
 
   ready
