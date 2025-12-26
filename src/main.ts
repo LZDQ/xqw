@@ -36,6 +36,7 @@ function startScene(app: HTMLElement, gameState: GameState): void {
   cssRenderer.domElement.style.left = "0";
   cssRenderer.domElement.style.pointerEvents = "none";
   cssRenderer.domElement.style.zIndex = "1";
+  app.appendChild(cssRenderer.domElement);
 
   const renderer = new THREE.WebGLRenderer({ antialias: true });
   renderer.setPixelRatio(window.devicePixelRatio);
@@ -45,7 +46,6 @@ function startScene(app: HTMLElement, gameState: GameState): void {
   renderer.domElement.style.left = "0";
   renderer.domElement.style.zIndex = "0";
   app.appendChild(renderer.domElement);
-  app.appendChild(cssRenderer.domElement);
 
   const camera = new THREE.PerspectiveCamera(30, window.innerWidth / window.innerHeight, 0.1, 50);
   camera.position.set(0, 1.6, 4);
@@ -53,11 +53,20 @@ function startScene(app: HTMLElement, gameState: GameState): void {
   const pickTargets: THREE.Object3D[] = [];
   ensureCrosshair(app);
 
-  const { scene, cssScene, ready, playerMeshes, whiteboardDisplay, actionPanelTarget } = initClassroom(THREE, gameState.students);
+  const {
+    scene,
+    cssScene,
+    ready,
+    playerMeshes,
+    whiteboardDisplay,
+  } = initClassroom(THREE, gameState);
   gameState.scene = scene;
   scene.add(camera);
   scene.userData.playerMeshes = playerMeshes;
   pickTargets.push(...playerMeshes);
+  if (whiteboardDisplay) {
+    pickTargets.push(whiteboardDisplay.mesh);
+  }
 
   const clock = new THREE.Clock();
   const input = new InputController(camera, renderer.domElement);
@@ -65,7 +74,7 @@ function startScene(app: HTMLElement, gameState: GameState): void {
   const debugHud = initDebugHUD(app, camera);
   const raycaster = new THREE.Raycaster();
   const ndcCenter = new THREE.Vector2(0, 0);
-  let currentHit: { kind: "student" | "action"; label: string; target: THREE.Object3D } | null = null;
+  let currentHit: { kind: "student" | "action" | "whiteboard"; label: string; target: THREE.Object3D; uv?: THREE.Vector2 | null } | null = null;
 
   function onResize(): void {
     camera.aspect = window.innerWidth / window.innerHeight;
@@ -74,7 +83,8 @@ function startScene(app: HTMLElement, gameState: GameState): void {
     cssRenderer.setSize(window.innerWidth, window.innerHeight);
   }
 
-  function onClick(): void {
+  function onClick(event?: MouseEvent): void {
+    if ((event as any)?._whiteboardSynthetic) return;
     if (isSettingsOpen()) return;
     if (!input.isLocked()) {
       input.lock();
@@ -87,11 +97,12 @@ function startScene(app: HTMLElement, gameState: GameState): void {
       console.debug("[acg3d] action click", { actionId, actionTitle });
       if (actionId && whiteboardDisplay) {
         whiteboardDisplay.showAction(actionId);
-        if (actionPanelTarget) {
-          actionPanelTarget.visible = true;
-          actionPanelTarget.userData.actionId = actionId;
-          actionPanelTarget.userData.actionTitle = actionTitle;
-        }
+      }
+      return;
+    }
+    if (currentHit.kind === "whiteboard") {
+      if (whiteboardDisplay) {
+        whiteboardDisplay.simulateClick(currentHit.uv ?? new THREE.Vector2(0.5, 0.5));
       }
       return;
     }
@@ -134,23 +145,31 @@ function pickTarget(
   ndc: THREE.Vector2,
   camera: THREE.Camera,
   targets: THREE.Object3D[]
-): { kind: "student" | "action"; label: string; target: THREE.Object3D } | null {
+): { kind: "student" | "action" | "whiteboard"; label: string; target: THREE.Object3D; uv?: THREE.Vector2 | null } | null {
   raycaster.setFromCamera(ndc, camera);
   const hits = raycaster.intersectObjects(targets, true);
   for (const hit of hits) {
     const info = describePick(hit.object);
-    if (info) return info;
+    if (info) {
+      if (info.kind === "whiteboard") {
+        return { ...info, target: hit.object, uv: hit.uv?.clone() ?? null };
+      }
+      return info;
+    }
   }
   return null;
 }
 
-function describePick(obj: THREE.Object3D): { kind: "student" | "action"; label: string; target: THREE.Object3D } | null {
+function describePick(obj: THREE.Object3D): { kind: "student" | "action" | "whiteboard"; label: string; target: THREE.Object3D } | null {
   let cur: THREE.Object3D | null = obj;
   while (cur) {
     const actionId = cur.userData.actionId as string | undefined;
     const actionTitle = cur.userData.actionTitle as string | undefined;
     if (actionId && actionTitle) {
       return { kind: "action", label: `Action ${actionTitle}`, target: cur };
+    }
+    if (cur.userData.whiteboard) {
+      return { kind: "whiteboard", label: "Whiteboard", target: cur };
     }
     const studentName = cur.userData.studentName as string | undefined;
     if (studentName) {

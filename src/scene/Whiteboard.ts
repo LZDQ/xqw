@@ -1,0 +1,140 @@
+import * as THREE from "three";
+import { CSS3DObject } from "three/examples/jsm/renderers/CSS3DRenderer.js";
+import { GameState } from "../core/GameState.ts";
+import type { ActionType } from "../lib/enums.ts";
+import { createWhiteboardUI } from "../ui/whiteboard.tsx";
+
+export class Whiteboard {
+  public cssObject: CSS3DObject;
+  public mesh: THREE.Mesh;
+  public resolution: { width: number; height: number };
+  private domElement: HTMLElement;
+  private readonly domWidth: number = 1400;
+
+  constructor(width: number, height: number, initialState?: GameState) {
+    const domHeight = Math.round(this.domWidth * (height / width));
+    this.resolution = { width: this.domWidth, height: domHeight };
+
+    this.domElement = this.createDom(initialState);
+
+    this.cssObject = new CSS3DObject(this.domElement);
+    const scale = width / this.domWidth;
+    this.cssObject.scale.setScalar(scale);
+    this.cssObject.name = "Whiteboard_Visual";
+
+    const geometry = new THREE.PlaneGeometry(width, height);
+    const material = new THREE.MeshBasicMaterial({
+      color: 0xffffff,
+      opacity: 0,
+      blending: THREE.NoBlending,
+      side: THREE.DoubleSide,
+    });
+    this.mesh = new THREE.Mesh(geometry, material);
+    this.mesh.name = "Whiteboard_Physics";
+    this.mesh.castShadow = true;
+    this.mesh.receiveShadow = true;
+    this.mesh.userData.whiteboard = true;
+
+    this.mesh.add(this.cssObject);
+    this.cssObject.position.set(0, 0, 0.01);
+  }
+
+  addToScene(
+    webGLScene: THREE.Scene,
+    cssScene: THREE.Scene,
+    position: THREE.Vector3,
+    rotationY?: number
+  ): void {
+    this.mesh.position.copy(position);
+    if (rotationY !== undefined) {
+      this.mesh.rotation.y = rotationY;
+    }
+    webGLScene.add(this.mesh);
+    cssScene.add(this.cssObject);
+    this.cssObject.position.copy(this.mesh.position);
+    this.cssObject.quaternion.copy(this.mesh.quaternion);
+    this.cssObject.translateZ(0.01);
+  }
+
+  render(gameState: GameState): void {
+    const newDOM = this.createDom(gameState);
+    this.swapDom(newDOM);
+  }
+
+  syncGameState(gameState: GameState): void {
+    this.render(gameState);
+  }
+
+  showAction(actionId: ActionType): void {
+    const card = this.domElement.querySelector<HTMLElement>(`[data-action="${actionId}"]`);
+    if (!card) return;
+    card.dispatchEvent(
+      new MouseEvent("click", {
+        bubbles: true,
+        cancelable: true,
+        view: window,
+      })
+    );
+  }
+
+  simulateClick(uv: THREE.Vector2): void {
+    const rect = this.domElement.getBoundingClientRect();
+    const clientX = rect.left + uv.x * rect.width;
+    const clientY = rect.bottom - uv.y * rect.height;
+    const elementUnderPointer = document.elementFromPoint(clientX, clientY);
+    if (!elementUnderPointer) return;
+
+    const evt = new MouseEvent("click", {
+      bubbles: true,
+      cancelable: true,
+      clientX,
+      clientY,
+      view: window,
+    });
+    (evt as any)._whiteboardSynthetic = true;
+    elementUnderPointer.dispatchEvent(evt);
+  }
+
+  update(): void {
+    this.cssObject.position.copy(this.mesh.position);
+    this.cssObject.quaternion.copy(this.mesh.quaternion);
+    this.cssObject.translateZ(0.01);
+  }
+
+  dispose(): void {
+    if (this.mesh.parent) {
+      this.mesh.parent.remove(this.mesh);
+    }
+    if (this.cssObject.parent) {
+      this.cssObject.parent.remove(this.cssObject);
+    }
+    if (this.domElement && this.domElement.parentNode) {
+      this.domElement.parentNode.removeChild(this.domElement);
+    }
+    this.mesh.geometry.dispose();
+    const material = this.mesh.material;
+    if (Array.isArray(material)) {
+      material.forEach((mat) => mat.dispose());
+    } else {
+      material.dispose();
+    }
+  }
+
+  private createDom(gameState?: GameState): HTMLElement {
+    const root = createWhiteboardUI(gameState ?? new GameState(2, 1, 5));
+    root.style.width = `${this.domWidth}px`;
+    root.style.height = `${this.resolution.height}px`;
+    root.style.willChange = "transform";
+    root.style.backfaceVisibility = "hidden";
+    root.style.pointerEvents = "auto";
+    return root;
+  }
+
+  private swapDom(newDom: HTMLElement): void {
+    if (this.domElement.parentNode) {
+      this.domElement.parentNode.replaceChild(newDom, this.domElement);
+    }
+    this.domElement = newDom;
+    this.cssObject.element = newDom;
+  }
+}
