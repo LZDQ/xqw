@@ -182,6 +182,9 @@ export function createTrainModal({
   selectorRow.style.justifyContent = "center";
   selectorRow.style.gap = "14px";
 
+  const clampIntensity = (val: number): number => Math.min(3, Math.max(1, Math.round(val)));
+  let currentIntensity = clampIntensity(intensity);
+
   const minusBtn = document.createElement("button");
   minusBtn.textContent = "−";
   minusBtn.style.width = "56px";
@@ -193,7 +196,7 @@ export function createTrainModal({
   minusBtn.style.cursor = "pointer";
   minusBtn.style.background = "#e2e8f0";
   minusBtn.onclick = () => {
-    const next = Math.max(1, currentIntensity - 1);
+    const next = clampIntensity(currentIntensity - 1);
     setIntensity(next);
   };
 
@@ -226,7 +229,7 @@ export function createTrainModal({
   plusBtn.style.cursor = "pointer";
   plusBtn.style.background = "#e2e8f0";
   plusBtn.onclick = () => {
-    const next = Math.min(3, currentIntensity + 1);
+    const next = clampIntensity(currentIntensity + 1);
     setIntensity(next);
   };
 
@@ -241,7 +244,6 @@ export function createTrainModal({
   previewStatus.style.fontWeight = "800";
   const intensityCopy = ["轻度训练", "中度训练", "重度训练"];
 
-  let currentIntensity = intensity;
   const statusClass = (): string => {
     const task = tasks.find((t) => t.id === selectedTaskId);
     if (!task) return "status-badge ok";
@@ -252,16 +254,16 @@ export function createTrainModal({
   };
 
   function setIntensity(val: number): void {
-    currentIntensity = val;
-    onIntensityChange(val);
-    previewStatus.textContent = intensityCopy[val - 1] ?? "";
+    currentIntensity = clampIntensity(val);
+    onIntensityChange(currentIntensity);
+    previewStatus.textContent = intensityCopy[currentIntensity - 1] ?? "";
     previewStatus.className = statusClass();
     dotEls.forEach((dot, idx) => {
-      dot.style.background = idx < val ? "#2b6cb0" : "#cbd5e1";
+      dot.style.background = idx < currentIntensity ? "#2b6cb0" : "#cbd5e1";
     });
   }
 
-  previewStatus.textContent = intensityCopy[intensity - 1] ?? "";
+  previewStatus.textContent = intensityCopy[currentIntensity - 1] ?? "";
   previewStatus.className = statusClass();
   intensityRow.appendChild(previewStatus);
 
