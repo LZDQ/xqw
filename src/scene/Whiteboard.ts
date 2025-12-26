@@ -42,9 +42,6 @@ export class Whiteboard {
     this.mesh.userData.whiteboard = true;
 
     this.mesh.add(this.cssObject);
-    this.cssObject.position.copy(this.mesh.position);
-    this.cssObject.quaternion.copy(this.mesh.quaternion);
-    this.cssObject.translateZ(0.01);
   }
 
   addToScene(
@@ -61,7 +58,7 @@ export class Whiteboard {
     cssScene.add(this.cssObject);
     this.cssObject.position.copy(this.mesh.position);
     this.cssObject.quaternion.copy(this.mesh.quaternion);
-    this.cssObject.translateZ(0.01);
+    this.cssObject.translateZ(1e-6);
   }
 
   render(gameState: GameState): void {
@@ -98,7 +95,7 @@ export class Whiteboard {
     });
     (evt as any)._whiteboardSynthetic = true;
     elementUnderPointer.dispatchEvent(evt);
-    this.render(gameState);
+    this.render(gameState); // for debug
   }
 
   // update(): void {

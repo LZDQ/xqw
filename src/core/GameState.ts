@@ -24,7 +24,9 @@ import {
   NORMAL_PROVINCE_TRAINING_QUALITY,
   WEAK_PROVINCE_TRAINING_QUALITY,
   COST_MULTIPLIER,
-  DORM_COMFORT_BONUS_PER_LEVEL
+  DORM_COMFORT_BONUS_PER_LEVEL,
+  ENTERTAINMENT_COST_CS,
+  ENTERTAINMENT_COST_MEAL
 } from "../lib/constants.ts";
 import {
   PROVINCES,
@@ -79,6 +81,14 @@ class Facilities {
 }
 
 export type QualificationMap = Record<CompetitionName, Set<String>>;
+export type RelaxOptionId = 1 | 2 | 3 | 5;
+
+export interface RelaxOption {
+  id: RelaxOptionId;
+  label: string;
+  desc: string;
+  cost: number;
+}
 
 export class GameState {
   students: Student[] = [];
@@ -237,6 +247,23 @@ export class GameState {
     return expense;
   }
 
+  getExpenseMultiplier(): number {
+    const activeCount = this.students.filter((s) => s && s.active !== false).length;
+    return Math.max(0, activeCount * 0.3);
+  }
+
+  getWeatherDescription(): string {
+    let desc = this.weather;
+    if (typeof this.temperature === "number") {
+      if (this.temperature < 0) desc += " (寒)";
+      else if (this.temperature < 10) desc += " (寒冷)";
+      else if (this.temperature < 20) desc += " (凉爽)";
+      else if (this.temperature < 30) desc += " (温暖)";
+      else desc += " (炎热)";
+    }
+    return desc;
+  }
+
   updateWeather(): void {
     try {
       const weekInYear = ((this.week - 1) % 16) + 1;
@@ -286,6 +313,66 @@ export class GameState {
       s.pressure_modifier = Math.max(0, (s.pressure_modifier || 0) - RECOVERY_RATE);
       s.comfort_modifier = Math.max(0, (s.comfort_modifier || 0) - RECOVERY_RATE);
     }
+  }
+
+  advanceWeeks(weeks = 1): void {
+    for (let i = 0; i < weeks; i++) {
+      this.recoverWeeklyPressure();
+      this.week += 1;
+      this.updateWeather();
+    }
+  }
+
+  getRelaxOptions(): RelaxOption[] {
+    return [
+      { id: 1, label: "放假", desc: "减小少许压力", cost: 0 },
+      { id: 2, label: `请学生吃饭 (¥${ENTERTAINMENT_COST_MEAL})`, desc: "补充能量,减小一定压力", cost: ENTERTAINMENT_COST_MEAL },
+      { id: 3, label: "体育运动", desc: `减小一定压力,注意天气影响，当前是${this.getWeatherDescription()}天`, cost: 0 },
+      { id: 5, label: "邀请学生打CS", desc: "适度减压,有可能提升学生能力", cost: ENTERTAINMENT_COST_CS }
+    ];
+  }
+
+  performRelax(optionId: RelaxOptionId): { success: true; option: RelaxOption; cost: number; message: string } | { success: false; error: string } {
+    const options = this.getRelaxOptions();
+    const option = options.find((o) => o.id === optionId) ?? options[0];
+    if (!option) return { success: false, error: "没有可用的娱乐选项" };
+    if (option.id === 5 && this.facilities.computer < 3) {
+      return { success: false, error: "需要计算机等级 ≥ 3" };
+    }
+
+    const adjustedCost = Math.round(option.cost * this.getExpenseMultiplier());
+    if (this.budget < adjustedCost) {
+      return { success: false, error: "经费不足" };
+    }
+    const charged = this.recordExpense(adjustedCost, `娱乐活动：${option.label}`);
+
+    for (const s of this.students) {
+      if (!s || s.active === false) continue;
+      if (option.id === 1) {
+        s.mental += uniform(3, 7);
+        s.pressure = Math.max(0, s.pressure - uniform(30, 45));
+      } else if (option.id === 2) {
+        s.mental += uniform(8, 20);
+        s.pressure = Math.max(0, s.pressure - uniform(40, 55));
+      } else if (option.id === 3) {
+        let wf = 1.0;
+        if (this.weather === "雪") wf = 2.0;
+        else if (this.weather === "雨" && this.facilities.dorm < 2) wf = 0.5;
+        s.pressure = Math.max(0, s.pressure - uniform(20, 35) * wf);
+        s.mental += uniform(3, 8);
+      } else if (option.id === 5) {
+        s.mental += uniform(1, 5);
+        s.coding += uniform(0.5, 1.0);
+        s.pressure = Math.max(0, s.pressure - uniform(10, 20));
+      }
+      s.mental = clamp(s.mental, 0, 100);
+      s.pressure = clamp(s.pressure, 0, 100);
+    }
+
+    this.weeksSinceEntertainment += 1;
+    this.advanceWeeks(1);
+
+    return { success: true, option, cost: charged, message: `娱乐活动完成：${option.label}` };
   }
 }
 

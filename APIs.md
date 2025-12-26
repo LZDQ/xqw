@@ -1,7 +1,7 @@
 ## GameState API (`src/core/GameState.ts`)
 
 - Responsibility: owns the simulation state migrated from the legacy HUD game (students, facilities, economy, weather, and season flow) and exposes helpers the 3D UI can query or mutate.
-- Types: `QualificationMap = Record<CompetitionName, Set<string>>`; `GameState` is the main export (module also defines internal `Facilities` helper plus random/clamp/name utilities).
+- Types: `QualificationMap = Record<CompetitionName, Set<string>>`; `RelaxOptionId = 1 | 2 | 3 | 5`; `RelaxOption` shape `{ id, label, desc, cost }`; `GameState` is the main export (module also defines internal `Facilities` helper plus random/clamp/name utilities).
 
 **Constructor**
 
@@ -29,7 +29,12 @@
 - `getWeeklyCost()`: base 1000 + 50 per active student + facilities maintenance.
 - `getDifficultyModifier()`: 0.9 for id 1, 1.1 for id 3, 1.2 for id 4, else 1.0.
 - `getTrainingQuality()`: pulls province training quality constant by type (strong/normal/weak).
+- `getExpenseMultiplier()`: scales action expenses by active roster size (`max(0, active * 0.3)`).
+- `getWeatherDescription()`: friendly weather string with a coarse temperature adjective.
 - `recordExpense(amount, description?)`: applies global `COST_MULTIPLIER`, deducts from budget with floor at 0, accumulates `totalExpenses`, returns the charged amount.
+- `advanceWeeks(weeks = 1)`: recovers weekly pressure, increments `week`, refreshes weather per week.
+- `getRelaxOptions()`: returns the entertainment options array with labels/desc/cost adapted to current weather text.
+- `performRelax(optionId)`: validates facility/budget for the option, records expense, applies per-student pressure/mental (and CS coding) adjustments mirroring the base-game rules, increments `weeksSinceEntertainment`, advances one week, and returns `{ success, message, cost, option }` or `{ success: false, error }`.
 - `updateWeather()`: derives month/season from `week`, consults province climate (or fallback per region), samples temperature via normal distribution, then assigns weather (`晴`/`阴`/`雨`/`雪`) with seasonal precipitation odds; has a catch-all fallback generator if anything throws.
 - `recoverWeeklyPressure()`: weekly decay on each active student’s `pressure`, `pressure_modifier`, and `comfort_modifier` by `RECOVERY_RATE`, never below 0.
 
@@ -41,31 +46,17 @@
 
 ## Whiteboard API (`src/scene/Whiteboard.ts`)
 
-- **Responsibility**: A hybrid View-Controller that manages both the physical presence (occlusion/raycasting) and visual presentation (DOM/CSS) of the classroom whiteboard. It replaces the standalone `BoardDom` by internally generating the UI based on the `GameState` and bridging 3D raycast events to 2D DOM interactions via UV mapping.
-- **Types**: `Whiteboard` is the main export.
+- Responsibility: renders the HUD-style whiteboard UI on a CSS3D plane in the scene, exposes helpers to refresh UI content and forward 3D hits into DOM clicks.
+- Public properties: `cssObject: CSS3DObject` (visual DOM surface attached to board), `mesh: THREE.Mesh` (invisible physics plane tagged with `userData.whiteboard = true`), `resolution` (DOM pixel size).
 
 **Constructor**
 
-- `new Whiteboard(width: number, height: number, initialState?: GameState)`:
-  - Initializes the internal DOM resolution (width fixed at 1400px, height calculated by aspect ratio).
-  - Builds the HUD with `createWhiteboardUI(gameState)` from `src/ui/whiteboard.tsx` (copy of the legacy HUD minus the student list).
-  - Instantiates the `THREE.Mesh` (PlaneGeometry) to act as the physical interactive surface (invisible but raycastable).
-  - Instantiates the `CSS3DObject` wrapping the container and attaches it to the mesh hierarchy.
+- `new Whiteboard(width: number, height: number)`: builds a DOM root sized to a fixed width of 1400px and proportional height, wraps it in a `CSS3DObject` scaled to fit the requested board size, and pairs it with a transparent double-sided plane mesh for raycasting.
 
-**Public properties**
+**Methods**
 
-- `mesh: THREE.Mesh`: The physical plane object. `main.ts` should raycast against this.
-- `cssObject: CSS3DObject`: The visual object containing the UI.
-- `resolution: { width: number, height: number }`: The internal pixel dimensions of the DOM, used for coordinate mapping.
-
-**Key methods**
-
-- `addToScene(webGLScene: THREE.Scene, cssScene: THREE.Scene, position: THREE.Vector3, rotationY?: number)`: 
-  - Positions the physical mesh and handles the dual-scene registration (WebGL + CSS3D) with necessary Z-offset adjustments. (Unchanged from previous logic).
-
-- `render(gameState: GameState)` / `syncGameState(gameState)`:
-  - Rebuilds the HUD via `createWhiteboardUI` (Header, facility/status panels, action buttons; students are now visualized in 3D status rings).
-  - Assigns IDs/data attributes for action buttons (Train, Relax, Mock, Camp, Resign) and logs actions via console/debug hooks.
-
-- `simulateClick(uv: THREE.Vector2)`:
-  - Maps raycast UVs to screen-space coordinates and dispatches a synthetic click (flagged with `_whiteboardSynthetic`) to the DOM element under that point so CSS3D content can respond without re-entering the global click handler.
+- `addToScene(webGLScene, cssScene, position, rotationY?)`: positions both the mesh and CSS3D object, adds them to the provided scenes, and slightly offsets the CSS layer forward.
+- `render(gameState)`: replaces the DOM root’s children with `createWhiteboardUI(gameState)` so text/buttons reflect the latest state.
+- `clickAction(actionId)`: finds an action card by `data-action` and dispatches a click; safe no-op if not found.
+- `simulateClick(uv, gameState)`: converts a raycast UV on the board plane into DOM `clientX/Y`, dispatches a synthetic click to the element under the pointer, and re-renders (currently for debugging).
+- `dispose()`: detaches the mesh/CSS object from parents and disposes geometry/materials; removes DOM root from the document.

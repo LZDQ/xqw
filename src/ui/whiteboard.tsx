@@ -1,5 +1,6 @@
-import type { GameState } from "../core/GameState.ts";
+import type { GameState, RelaxOptionId } from "../core/GameState.ts";
 import { ACTIONS, type ActionType } from "../lib/enums.ts";
+import { createRelaxModal } from "./modals/relax.tsx";
 
 const BASE_GAME_WHITEBOARD_CSS = `
 #whiteboard-content.whiteboard-ui {
@@ -187,6 +188,13 @@ const BASE_GAME_WHITEBOARD_CSS = `
 }
 `;
 
+type WhiteboardView = "dashboard" | "relax";
+let whiteboardView: WhiteboardView = "dashboard";
+let relaxSelection: RelaxOptionId = 1;
+let relaxStatusMessage: string | null = null;
+const LOG_LIMIT = 30;
+const whiteboardLogs: string[] = [];
+
 function formatCurrency(value: number): string {
   return `¥${value.toLocaleString("zh-CN")}`;
 }
@@ -243,8 +251,26 @@ function createLogPanel(): HTMLElement {
   const log = document.createElement("div");
   log.id = "log";
   log.className = "wb-log";
-  log.textContent = "点击右侧行动按钮以记录操作...";
+  renderLogs(log);
   return log;
+}
+
+function renderLogs(logPanel: HTMLElement): void {
+  logPanel.replaceChildren();
+  if (whiteboardLogs.length === 0) {
+    logPanel.textContent = "点击右侧行动按钮以记录操作...";
+    return;
+  }
+  whiteboardLogs.forEach((entry) => {
+    const row = document.createElement("div");
+    row.textContent = entry;
+    logPanel.appendChild(row);
+  });
+}
+
+function pushLog(message: string): void {
+  whiteboardLogs.unshift(message);
+  if (whiteboardLogs.length > LOG_LIMIT) whiteboardLogs.pop();
 }
 
 function createActionCards(gameState: GameState, appendLog: (msg: string) => void): HTMLElement {
@@ -262,6 +288,11 @@ function createActionCards(gameState: GameState, appendLog: (msg: string) => voi
   const handleAction = (action: ActionType | "RESIGN"): void => {
     const label = action === "RESIGN" ? "辞职" : ACTIONS[action];
     console.debug("[acg3d] whiteboard action click", { action, label, week: gameState.week, budget: gameState.budget });
+    if (action === "RELAX") {
+      whiteboardView = "relax";
+      relaxStatusMessage = null;
+      return;
+    }
     appendLog(`第 ${gameState.week} 周：选择了 ${label}，当前经费 ${formatCurrency(gameState.budget)}`);
   };
 
@@ -306,6 +337,50 @@ export function createWhiteboardUI(gameState: GameState): HTMLElement {
 
   const header = createHeader(gameState);
   root.appendChild(header);
+
+  if (whiteboardView === "relax") {
+    const row = document.createElement("div");
+    row.className = "row";
+    row.style.justifyContent = "center";
+    row.style.alignItems = "center";
+    row.style.paddingTop = "20px";
+    row.style.paddingBottom = "20px";
+    row.style.minHeight = "70vh";
+
+    const onSelect = (id: RelaxOptionId): void => {
+      relaxSelection = id;
+    };
+    const onCancel = (): void => {
+      whiteboardView = "dashboard";
+      relaxSelection = 1;
+      relaxStatusMessage = null;
+    };
+    const onConfirm = (id: RelaxOptionId): void => {
+      const actionWeek = gameState.week;
+      const result = gameState.performRelax(id);
+      if (!result.success) {
+        relaxStatusMessage = result.error;
+        return;
+      }
+      pushLog(`第 ${actionWeek} 周：娱乐-${result.option.label}，费用 ${formatCurrency(result.cost)}`);
+      relaxStatusMessage = null;
+      whiteboardView = "dashboard";
+      relaxSelection = 1;
+    };
+
+    const modal = createRelaxModal({
+      gameState,
+      selectedId: relaxSelection,
+      onSelect,
+      onCancel,
+      onConfirm,
+      status: relaxStatusMessage
+    });
+
+    row.appendChild(modal);
+    root.appendChild(row);
+    return root;
+  }
 
   const row = document.createElement("div");
   row.className = "row";
@@ -390,9 +465,8 @@ export function createWhiteboardUI(gameState: GameState): HTMLElement {
   rightCol.appendChild(actionHeading);
 
   const appendLog = (msg: string): void => {
-    const entry = document.createElement("div");
-    entry.textContent = msg;
-    logPanel.prepend(entry);
+    pushLog(msg);
+    renderLogs(logPanel);
   };
 
   rightCol.appendChild(createActionCards(gameState, appendLog));
