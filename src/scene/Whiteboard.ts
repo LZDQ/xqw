@@ -8,16 +8,22 @@ export class Whiteboard {
   public cssObject: CSS3DObject;
   public mesh: THREE.Mesh;
   public resolution: { width: number; height: number };
-  private domElement: HTMLElement;
+  private rootElement: HTMLElement; // persistent element holding inner elements
   private readonly domWidth: number = 1400;
 
-  constructor(width: number, height: number, initialState?: GameState) {
+  constructor(width: number, height: number) {
     const domHeight = Math.round(this.domWidth * (height / width));
     this.resolution = { width: this.domWidth, height: domHeight };
 
-    this.domElement = this.createDom(initialState);
+    const root = document.createElement("div");
+    root.style.width = `${this.domWidth}px`;
+    root.style.height = `${this.resolution.height}px`;
+    root.style.willChange = "transform";
+    root.style.backfaceVisibility = "hidden";
+    root.style.pointerEvents = "auto";
+    this.rootElement = root;
 
-    this.cssObject = new CSS3DObject(this.domElement);
+    this.cssObject = new CSS3DObject(this.rootElement);
     const scale = width / this.domWidth;
     this.cssObject.scale.setScalar(scale);
     this.cssObject.name = "Whiteboard_Visual";
@@ -36,7 +42,9 @@ export class Whiteboard {
     this.mesh.userData.whiteboard = true;
 
     this.mesh.add(this.cssObject);
-    this.cssObject.position.set(0, 0, 0.01);
+    this.cssObject.position.copy(this.mesh.position);
+    this.cssObject.quaternion.copy(this.mesh.quaternion);
+    this.cssObject.translateZ(0.01);
   }
 
   addToScene(
@@ -57,16 +65,12 @@ export class Whiteboard {
   }
 
   render(gameState: GameState): void {
-    const newDOM = this.createDom(gameState);
-    this.swapDom(newDOM);
+    this.rootElement.replaceChildren(createWhiteboardUI(gameState));
+    console.debug("[whiteboard] render", this.rootElement);
   }
 
-  syncGameState(gameState: GameState): void {
-    this.render(gameState);
-  }
-
-  showAction(actionId: ActionType): void {
-    const card = this.domElement.querySelector<HTMLElement>(`[data-action="${actionId}"]`);
+  clickAction(actionId: ActionType): void {
+    const card = this.rootElement.querySelector<HTMLElement>(`[data-action="${actionId}"]`);
     if (!card) return;
     card.dispatchEvent(
       new MouseEvent("click", {
@@ -77,8 +81,9 @@ export class Whiteboard {
     );
   }
 
-  simulateClick(uv: THREE.Vector2): void {
-    const rect = this.domElement.getBoundingClientRect();
+  simulateClick(uv: THREE.Vector2, gameState: GameState): void {
+    console.debug("[whiteboard] simulate click", uv);
+    const rect = this.rootElement.getBoundingClientRect();
     const clientX = rect.left + uv.x * rect.width;
     const clientY = rect.bottom - uv.y * rect.height;
     const elementUnderPointer = document.elementFromPoint(clientX, clientY);
@@ -93,13 +98,14 @@ export class Whiteboard {
     });
     (evt as any)._whiteboardSynthetic = true;
     elementUnderPointer.dispatchEvent(evt);
+    this.render(gameState);
   }
 
-  update(): void {
-    this.cssObject.position.copy(this.mesh.position);
-    this.cssObject.quaternion.copy(this.mesh.quaternion);
-    this.cssObject.translateZ(0.01);
-  }
+  // update(): void {
+  //   this.cssObject.position.copy(this.mesh.position);
+  //   this.cssObject.quaternion.copy(this.mesh.quaternion);
+  //   this.cssObject.translateZ(0.01);
+  // }
 
   dispose(): void {
     if (this.mesh.parent) {
@@ -108,8 +114,8 @@ export class Whiteboard {
     if (this.cssObject.parent) {
       this.cssObject.parent.remove(this.cssObject);
     }
-    if (this.domElement && this.domElement.parentNode) {
-      this.domElement.parentNode.removeChild(this.domElement);
+    if (this.rootElement && this.rootElement.parentNode) {
+      this.rootElement.parentNode.removeChild(this.rootElement);
     }
     this.mesh.geometry.dispose();
     const material = this.mesh.material;
@@ -118,23 +124,5 @@ export class Whiteboard {
     } else {
       material.dispose();
     }
-  }
-
-  private createDom(gameState?: GameState): HTMLElement {
-    const root = createWhiteboardUI(gameState ?? new GameState(2, 1, 5));
-    root.style.width = `${this.domWidth}px`;
-    root.style.height = `${this.resolution.height}px`;
-    root.style.willChange = "transform";
-    root.style.backfaceVisibility = "hidden";
-    root.style.pointerEvents = "auto";
-    return root;
-  }
-
-  private swapDom(newDom: HTMLElement): void {
-    if (this.domElement.parentNode) {
-      this.domElement.parentNode.replaceChild(newDom, this.domElement);
-    }
-    this.domElement = newDom;
-    this.cssObject.element = newDom;
   }
 }

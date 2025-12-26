@@ -87,7 +87,7 @@ function startScene(app: HTMLElement, gameState: GameState): void {
     if (!currentHit) return;
     if (currentHit.kind === "whiteboard") {
       if (whiteboard) {
-        whiteboard.simulateClick(currentHit.uv ?? new THREE.Vector2(0.5, 0.5));
+        whiteboard.simulateClick(currentHit.uv ?? new THREE.Vector2(0.5, 0.5), gameState);
       }
       return;
     }
@@ -116,7 +116,7 @@ function startScene(app: HTMLElement, gameState: GameState): void {
       pickTargets.push(
         ...scene.userData.playerMeshes as THREE.Object3D[],
       );
-      whiteboard.syncGameState(gameState);
+      whiteboard.render(gameState);
     })
     .catch((err) => console.error("asset load error", err))
     .finally(animate);

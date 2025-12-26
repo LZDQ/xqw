@@ -67,7 +67,7 @@ export function initClassroom(THREE: typeof THREEType, gameState: GameState): Cl
   const playerMeshes: THREEType.Object3D[] = [];
   scene.userData.playerMeshes = playerMeshes;
   const seatLayout = buildSeatLayout();
-  const whiteboard = new Whiteboard(BOARD_SIZE.width, BOARD_SIZE.height, gameState);
+  const whiteboard = new Whiteboard(BOARD_SIZE.width, BOARD_SIZE.height);
   const boardPos = new THREE.Vector3(0, 2.5, -ROOM.depth / 2 + 0.1);
   whiteboard.addToScene(scene, cssScene, boardPos, 0);
   scene.userData.whiteboard = whiteboard;
