@@ -282,6 +282,10 @@ export const ENTERTAINMENT_COST_CS = 1000;
 /* 放假 */
 export const VACATION_MAX_DAYS = 7;
 
+/* 压力阈值（UI/风险提示） */
+export const PRESSURE_THRESHOLD_MEDIUM = 70;
+export const PRESSURE_THRESHOLD_HIGH = 90;
+
 /* 比赛奖励 */
 export const NOI_GOLD_THRESHOLD = 0.8;
 export const NOI_SILVER_THRESHOLD = 0.56;

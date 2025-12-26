@@ -1,4 +1,5 @@
 import type { GameState, RelaxOption, RelaxOptionId } from "../../core/GameState.ts";
+import { createCancelCircle, createConfirmCircle } from "./buttons.tsx";
 
 const RELAX_MODAL_STYLE = `
 .option-card{transition:all 180ms ease;border:1px solid #e6e6e6;background:#fff}
@@ -115,32 +116,16 @@ export function createRelaxModal({
   actions.style.position = "relative";
   actions.style.paddingTop = "24px";
 
-  const cancelBtn = document.createElement("button");
-  cancelBtn.className = "btn btn-ghost";
-  cancelBtn.textContent = "取消";
+  const cancelBtn = createCancelCircle(() => onCancel());
   cancelBtn.style.position = "absolute";
   cancelBtn.style.left = "0";
   cancelBtn.style.bottom = "0";
-  cancelBtn.style.width = "64px";
-  cancelBtn.style.height = "64px";
-  cancelBtn.style.borderRadius = "50%";
-  cancelBtn.style.fontSize = "18px";
-  cancelBtn.style.fontWeight = "700";
-  cancelBtn.onclick = () => onCancel();
 
-  const confirmBtn = document.createElement("button");
-  confirmBtn.className = "btn";
+  const confirmBtn = createConfirmCircle(() => onConfirm(selectedId));
   confirmBtn.id = "ent-confirm";
-  confirmBtn.textContent = "确认";
   confirmBtn.style.position = "absolute";
   confirmBtn.style.right = "0";
   confirmBtn.style.bottom = "0";
-  confirmBtn.style.width = "68px";
-  confirmBtn.style.height = "68px";
-  confirmBtn.style.borderRadius = "50%";
-  confirmBtn.style.fontSize = "18px";
-  confirmBtn.style.fontWeight = "800";
-  confirmBtn.onclick = () => onConfirm(selectedId);
 
   actions.appendChild(cancelBtn);
   actions.appendChild(confirmBtn);

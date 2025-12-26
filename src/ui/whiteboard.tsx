@@ -1,6 +1,7 @@
 import type { GameState, RelaxOptionId } from "../core/GameState.ts";
 import { ACTIONS, type ActionType } from "../lib/enums.ts";
 import { createRelaxModal } from "./modals/relax.tsx";
+import { createTrainModal } from "./modals/train.tsx";
 
 const BASE_GAME_WHITEBOARD_CSS = `
 #whiteboard-content.whiteboard-ui {
@@ -188,10 +189,13 @@ const BASE_GAME_WHITEBOARD_CSS = `
 }
 `;
 
-type WhiteboardView = "dashboard" | "relax";
+type WhiteboardView = "dashboard" | "relax" | "train";
 let whiteboardView: WhiteboardView = "dashboard";
 let relaxSelection: RelaxOptionId = 1;
 let relaxStatusMessage: string | null = null;
+let trainSelection: string | null = null;
+let trainIntensity = 2;
+let trainStatusMessage: string | null = null;
 const LOG_LIMIT = 30;
 const whiteboardLogs: string[] = [];
 
@@ -277,17 +281,23 @@ function createActionCards(gameState: GameState, appendLog: (msg: string) => voi
   const wrapper = document.createElement("div");
   wrapper.className = "action-cards";
 
-  const cards: Array<[ActionType | "RESIGN", string, string]> = [
+  const cards: Array<[ActionType, string, string]> = [
     ["TRAIN", ACTIONS.TRAIN, "安排学生进行专项训练，提高实力"],
     ["RELAX", ACTIONS.RELAX, "放松娱乐，缓解压力"],
     ["MOCK", ACTIONS.MOCK, "进行内部模拟比赛，检验训练成果"],
-    ["CAMP", ACTIONS.CAMP, "参加合适的外出集训，集中提升训练效率"],
-    ["RESIGN", "辞职", "立即结束本赛季并进行结算"]
+    ["CAMP", ACTIONS.CAMP, "参加合适的外出集训，集中提升训练效率"]
   ];
 
-  const handleAction = (action: ActionType | "RESIGN"): void => {
-    const label = action === "RESIGN" ? "辞职" : ACTIONS[action];
+  const handleAction = (action: ActionType): void => {
+    const label = ACTIONS[action];
     console.debug("[acg3d] whiteboard action click", { action, label, week: gameState.week, budget: gameState.budget });
+    if (action === "TRAIN") {
+      whiteboardView = "train";
+      trainStatusMessage = null;
+      const tasks = gameState.weeklyTrainingTasks.length ? gameState.weeklyTrainingTasks : gameState.getTrainingTasks(6);
+      trainSelection = tasks[0]?.id ?? null;
+      return;
+    }
     if (action === "RELAX") {
       whiteboardView = "relax";
       relaxStatusMessage = null;
@@ -337,6 +347,65 @@ export function createWhiteboardUI(gameState: GameState): HTMLElement {
 
   const header = createHeader(gameState);
   root.appendChild(header);
+
+  if (whiteboardView === "train") {
+    const row = document.createElement("div");
+    row.className = "row";
+    row.style.justifyContent = "center";
+    row.style.alignItems = "center";
+    row.style.paddingTop = "16px";
+    row.style.paddingBottom = "16px";
+    row.style.minHeight = "70vh";
+
+    const tasks =
+      gameState.weeklyTrainingTasks.length > 0
+        ? gameState.weeklyTrainingTasks
+        : gameState.getTrainingTasks(6);
+    const selectedId = trainSelection ?? tasks[0]?.id ?? "";
+
+    const onSelect = (taskId: string): void => {
+      trainSelection = taskId;
+    };
+    const onCancel = (): void => {
+      whiteboardView = "dashboard";
+      trainStatusMessage = null;
+    };
+    const onConfirm = (taskId: string, intensity: number): void => {
+      const actionWeek = gameState.week;
+      const result = gameState.performTraining(taskId, intensity);
+      if (!result.success) {
+        trainStatusMessage = result.error;
+        return;
+      }
+      pushLog(`第 ${actionWeek} 周：训练-${result.task.name}，强度 ${intensity}`);
+      result.results.forEach((r) => {
+        const boostStr = r.boosts.map((b) => `${b.type}+${b.actualAmount}`).join(", ");
+        pushLog(`  ${r.name}: 效率${Math.round(r.multiplier * 100)}% [${boostStr}]`);
+      });
+      trainStatusMessage = null;
+      whiteboardView = "dashboard";
+      trainSelection = null;
+      trainIntensity = 2;
+    };
+
+    const modal = createTrainModal({
+      gameState,
+      tasks,
+      selectedTaskId: selectedId,
+      intensity: trainIntensity,
+      onSelect,
+      onCancel,
+      onIntensityChange: (val) => {
+        trainIntensity = val;
+      },
+      onConfirm,
+      status: trainStatusMessage
+    });
+
+    row.appendChild(modal);
+    root.appendChild(row);
+    return root;
+  }
 
   if (whiteboardView === "relax") {
     const row = document.createElement("div");

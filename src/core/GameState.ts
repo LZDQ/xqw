@@ -26,7 +26,12 @@ import {
   COST_MULTIPLIER,
   DORM_COMFORT_BONUS_PER_LEVEL,
   ENTERTAINMENT_COST_CS,
-  ENTERTAINMENT_COST_MEAL
+  ENTERTAINMENT_COST_MEAL,
+  TRAINING_PRESSURE_MULTIPLIER_HEAVY,
+  TRAINING_PRESSURE_MULTIPLIER_MEDIUM,
+  TRAINING_PRESSURE_MULTIPLIER_LIGHT,
+  TRAINING_EFFECT_MULTIPLIER,
+  PRESSURE_INCREASE_MULTIPLIER
 } from "../lib/constants.ts";
 import {
   PROVINCES,
@@ -36,7 +41,9 @@ import {
   type DifficultyConfig,
   type ProvinceConfig
 } from "../lib/config.ts";
-import type { CompetitionName } from "../lib/enums.ts";
+import type { CompetitionName, KnowledgeType } from "../lib/enums.ts";
+import type { TrainingTask } from "../data/trainingTasks.ts";
+import { selectTrainingTasks } from "../data/trainingTasks.ts";
 
 class Facilities {
   computer = 1;
@@ -89,6 +96,17 @@ export interface RelaxOption {
   desc: string;
   cost: number;
 }
+export interface TrainingResult {
+  name: string;
+  multiplier: number;
+  boosts: Array<{ type: KnowledgeType; baseAmount: number; actualAmount: number }>;
+}
+export interface PerformTrainingResult {
+  success: true;
+  task: TrainingTask;
+  intensity: number;
+  results: TrainingResult[];
+}
 
 export class GameState {
   students: Student[] = [];
@@ -118,6 +136,7 @@ export class GameState {
   careerCompetitions: Array<unknown> = [];
   provinceClimate: ClimateProfile | null = null;
   scene: THREE.Scene | null = null;
+  weeklyTrainingTasks: TrainingTask[] = [];
 
   constructor(difficulty: number, provinceId: number, numStudents: number) {
     this.difficultyConfig = getDifficultyById(difficulty) ?? getDifficultyById(2);
@@ -145,6 +164,7 @@ export class GameState {
       this.createEmptyQualificationMap()
     ];
 
+    this.weeklyTrainingTasks = this.getTrainingTasks(6);
     this.updateWeather();
   }
 
@@ -264,6 +284,17 @@ export class GameState {
     return desc;
   }
 
+  getTrainingTasks(count = 6): TrainingTask[] {
+    const actives = this.students.filter((s) => s && s.active !== false);
+    const avgAbility =
+      actives.length === 0
+        ? 50
+        : actives.reduce((sum, s) => sum + (s.thinking + s.coding) / 2, 0) / actives.length;
+    const tasks = selectTrainingTasks(count, avgAbility);
+    this.weeklyTrainingTasks = tasks;
+    return tasks;
+  }
+
   updateWeather(): void {
     try {
       const weekInYear = ((this.week - 1) % 16) + 1;
@@ -374,6 +405,100 @@ export class GameState {
 
     return { success: true, option, cost: charged, message: `娱乐活动完成：${option.label}` };
   }
+
+  performTraining(taskId: string, intensity: number): PerformTrainingResult | { success: false; error: string } {
+    const task = this.weeklyTrainingTasks.find((t) => t.id === taskId) ?? this.weeklyTrainingTasks[0];
+    if (!task) return { success: false, error: "没有可用的训练题目" };
+    const clampedIntensity = clamp(Math.round(intensity), 1, 3);
+
+    const weatherFactor = this.getWeatherFactor();
+    const comfort = this.getComfort();
+    const comfortFactor = 1.0 + Math.max(0.0, (50 - comfort) / 100.0);
+
+    const results: TrainingResult[] = [];
+
+    for (const s of this.students) {
+      if (!s || s.active === false) continue;
+      let personalComfort = comfort;
+      if (typeof s.comfort_modifier === "number") {
+        personalComfort = clamp(personalComfort + s.comfort_modifier, 0, 100);
+      }
+      s.comfort = personalComfort;
+
+      const sickPenalty = s.sick_weeks > 0 ? 0.7 : 1.0;
+      const studentAbility = (s.thinking + s.coding) / 2.0;
+      const boostResult = applyTaskBoosts(s, task);
+
+      const libraryLevel = this.facilities.library;
+      let libraryBonus = 0;
+      if (libraryLevel === 1) libraryBonus = -0.2;
+      else if (libraryLevel === 2) libraryBonus = -0.05;
+      else if (libraryLevel === 3) libraryBonus = 0.1;
+      else if (libraryLevel === 4) libraryBonus = 0.12;
+      else if (libraryLevel === 5) libraryBonus = 0.14;
+      const libraryMultiplier = 1.0 + libraryBonus;
+
+      const intensityFactor = clampedIntensity === 1 ? 0.7 : clampedIntensity === 3 ? 1.3 : 1.0;
+
+      for (const boost of boostResult.boosts) {
+        const totalBoost = Math.floor(boost.actualAmount * libraryMultiplier * intensityFactor * sickPenalty);
+        s.addKnowledge(boost.type, totalBoost);
+        boost.actualAmount = totalBoost;
+      }
+
+      const computerLevel = this.facilities.computer;
+      let computerBonus = 0;
+      if (computerLevel === 1) computerBonus = -0.2;
+      else if (computerLevel === 2) computerBonus = 0;
+      else if (computerLevel === 3) computerBonus = 0.1;
+      else if (computerLevel === 4) computerBonus = 0.2;
+      else if (computerLevel === 5) computerBonus = 0.3;
+      const computerMultiplier = 1.0 + computerBonus;
+
+      const abilityGainBase =
+        boostResult.multiplier * intensityFactor * (1 - Math.min(0.6, s.pressure / 200.0));
+      const thinkingGain =
+        uniform(0.6, 1.5) * abilityGainBase * computerMultiplier * TRAINING_EFFECT_MULTIPLIER;
+      const codingGain =
+        uniform(1, 2.5) * abilityGainBase * computerMultiplier * TRAINING_EFFECT_MULTIPLIER;
+
+      s.thinking += thinkingGain;
+      s.coding += codingGain;
+
+      let basePressure = clampedIntensity === 1 ? 15 : clampedIntensity === 2 ? 25 : 40;
+      const difficultyPressure = Math.max(0, (task.difficulty - studentAbility) * 0.2);
+      basePressure += difficultyPressure;
+
+      if (clampedIntensity === 3) basePressure *= TRAINING_PRESSURE_MULTIPLIER_HEAVY;
+      else if (clampedIntensity === 2) basePressure *= TRAINING_PRESSURE_MULTIPLIER_MEDIUM;
+      else basePressure *= TRAINING_PRESSURE_MULTIPLIER_LIGHT;
+
+      const canteenReduction = this.facilities.getCanteenPressureReduction();
+      let pressureIncrease = basePressure * weatherFactor * canteenReduction * comfortFactor;
+      if (s.sick_weeks > 0) pressureIncrease += 10;
+      pressureIncrease *= PRESSURE_INCREASE_MULTIPLIER;
+
+      let totalPressureChange = pressureIncrease;
+      if (typeof s.pressure_modifier === "number") {
+        totalPressureChange += s.pressure_modifier;
+        s.pressure_modifier = 0;
+      }
+
+      s.pressure = clamp(s.pressure + totalPressureChange, 0, 100);
+
+      results.push({
+        name: s.name,
+        multiplier: boostResult.multiplier,
+        boosts: boostResult.boosts
+      });
+    }
+
+    this.weeksSinceEntertainment += 1;
+    this.advanceWeeks(1);
+    this.weeklyTrainingTasks = this.getTrainingTasks(6);
+
+    return { success: true, task, intensity: clampedIntensity, results };
+  }
 }
 
 function uniform(min: number, max: number): number {
@@ -391,6 +516,34 @@ function normal(mean = 0, stddev = 1): number {
 
 function clamp(val: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, val));
+}
+
+function calculateBoostMultiplier(studentAbility: number, taskDifficulty: number): number {
+  const diff = studentAbility - taskDifficulty;
+  let multiplier: number;
+
+  if (diff >= -10) {
+    multiplier = 1.0;
+  } else if (diff < -10 && diff >= -50) {
+    multiplier = 1.0 + (diff + 10) * (0.4 / 40);
+  } else if (diff < -50 && diff >= -100) {
+    multiplier = 0.6 + (diff + 50) * (0.3 / 50);
+  } else {
+    const excess = Math.abs(diff + 100);
+    multiplier = 0.3 - 0.2 * Math.min(1.0, excess / 100);
+  }
+  return clamp(multiplier, 0.1, 1.0);
+}
+
+function applyTaskBoosts(student: Student, task: TrainingTask): { multiplier: number; boosts: Array<{ type: KnowledgeType; baseAmount: number; actualAmount: number }> } {
+  const studentAbility = (student.thinking + student.coding) / 2.0;
+  const multiplier = calculateBoostMultiplier(studentAbility, task.difficulty);
+  const boosts = task.boosts.map((boost) => ({
+    type: boost.type,
+    baseAmount: boost.amount,
+    actualAmount: Math.floor(boost.amount * multiplier)
+  }));
+  return { multiplier, boosts };
 }
 
 function generateName(region: string, idx: number): string {

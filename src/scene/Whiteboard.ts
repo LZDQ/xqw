@@ -58,7 +58,7 @@ export class Whiteboard {
     cssScene.add(this.cssObject);
     this.cssObject.position.copy(this.mesh.position);
     this.cssObject.quaternion.copy(this.mesh.quaternion);
-    this.cssObject.translateZ(1e-6);
+    // this.cssObject.translateZ(1e-6);
   }
 
   render(gameState: GameState): void {
