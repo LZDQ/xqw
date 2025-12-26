@@ -5,7 +5,6 @@ import { initDebugHUD } from "./ui/debugHud.ts";
 import { initSettingsHUD, isSettingsOpen } from "./ui/settings.ts";
 import { showStartHUD } from "./ui/start.ts";
 import { initClassroom } from "./scene/classroom.ts";
-import type { ActionType } from "./lib/enums.ts";
 import { CSS3DRenderer } from "three/examples/jsm/renderers/CSS3DRenderer.js";
 import {
 	computeBoundsTree, disposeBoundsTree, acceleratedRaycast,
@@ -57,16 +56,11 @@ function startScene(app: HTMLElement, gameState: GameState): void {
     scene,
     cssScene,
     ready,
-    playerMeshes,
-    whiteboardDisplay,
+    whiteboard,
   } = initClassroom(THREE, gameState);
   gameState.scene = scene;
   scene.add(camera);
-  scene.userData.playerMeshes = playerMeshes;
-  pickTargets.push(...playerMeshes);
-  if (whiteboardDisplay) {
-    pickTargets.push(whiteboardDisplay.mesh);
-  }
+  pickTargets.push(whiteboard.mesh);
 
   const clock = new THREE.Clock();
   const input = new InputController(camera, renderer.domElement);
@@ -74,7 +68,7 @@ function startScene(app: HTMLElement, gameState: GameState): void {
   const debugHud = initDebugHUD(app, camera);
   const raycaster = new THREE.Raycaster();
   const ndcCenter = new THREE.Vector2(0, 0);
-  let currentHit: { kind: "student" | "action" | "whiteboard"; label: string; target: THREE.Object3D; uv?: THREE.Vector2 | null } | null = null;
+  let currentHit: { kind: "student" | "whiteboard"; label: string; target: THREE.Object3D; uv?: THREE.Vector2 | null } | null = null;
 
   function onResize(): void {
     camera.aspect = window.innerWidth / window.innerHeight;
@@ -91,18 +85,9 @@ function startScene(app: HTMLElement, gameState: GameState): void {
       return;
     }
     if (!currentHit) return;
-    if (currentHit.kind === "action") {
-      const actionId = currentHit.target.userData.actionId as ActionType | undefined;
-      const actionTitle = currentHit.target.userData.actionTitle as string | undefined;
-      console.debug("[acg3d] action click", { actionId, actionTitle });
-      if (actionId && whiteboardDisplay) {
-        whiteboardDisplay.showAction(actionId);
-      }
-      return;
-    }
     if (currentHit.kind === "whiteboard") {
-      if (whiteboardDisplay) {
-        whiteboardDisplay.simulateClick(currentHit.uv ?? new THREE.Vector2(0.5, 0.5));
+      if (whiteboard) {
+        whiteboard.simulateClick(currentHit.uv ?? new THREE.Vector2(0.5, 0.5));
       }
       return;
     }
@@ -129,12 +114,9 @@ function startScene(app: HTMLElement, gameState: GameState): void {
   ready
     .then(() => {
       pickTargets.push(
-        ...(scene.userData.playerMeshes as THREE.Object3D[] | undefined ?? []),
-        ...(scene.userData.actionTargets as THREE.Object3D[] | undefined ?? [])
+        ...scene.userData.playerMeshes as THREE.Object3D[],
       );
-      if (whiteboardDisplay) {
-        whiteboardDisplay.syncGameState(gameState);
-      }
+      whiteboard.syncGameState(gameState);
     })
     .catch((err) => console.error("asset load error", err))
     .finally(animate);
@@ -145,7 +127,7 @@ function pickTarget(
   ndc: THREE.Vector2,
   camera: THREE.Camera,
   targets: THREE.Object3D[]
-): { kind: "student" | "action" | "whiteboard"; label: string; target: THREE.Object3D; uv?: THREE.Vector2 | null } | null {
+): { kind: "student" | "whiteboard"; label: string; target: THREE.Object3D; uv?: THREE.Vector2 | null } | null {
   raycaster.setFromCamera(ndc, camera);
   const hits = raycaster.intersectObjects(targets, true);
   for (const hit of hits) {
@@ -160,14 +142,9 @@ function pickTarget(
   return null;
 }
 
-function describePick(obj: THREE.Object3D): { kind: "student" | "action" | "whiteboard"; label: string; target: THREE.Object3D } | null {
+function describePick(obj: THREE.Object3D): { kind: "student" | "whiteboard"; label: string; target: THREE.Object3D } | null {
   let cur: THREE.Object3D | null = obj;
   while (cur) {
-    const actionId = cur.userData.actionId as string | undefined;
-    const actionTitle = cur.userData.actionTitle as string | undefined;
-    if (actionId && actionTitle) {
-      return { kind: "action", label: `Action ${actionTitle}`, target: cur };
-    }
     if (cur.userData.whiteboard) {
       return { kind: "whiteboard", label: "Whiteboard", target: cur };
     }

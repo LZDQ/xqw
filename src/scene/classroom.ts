@@ -5,7 +5,7 @@ import type { GameState } from "../core/GameState.ts";
 import type { Student } from "../core/Student.ts";
 import { Whiteboard } from "./Whiteboard.ts";
 
-const ROOM = { width: 14, depth: 10, height: 4 };
+const ROOM = { width: 14, depth: 10, height: 4.5 };
 // Use root-relative paths so dev server/static builds serve public assets correctly.
 const MODEL_BASE = "/assets/models/";
 const FALLBACK_TEXTURE = "/assets/textures/WOOD 1_0.jpeg";
@@ -27,10 +27,8 @@ interface Seat {
 export interface ClassroomInitResult {
   scene: THREEType.Scene;
   cssScene: THREEType.Scene;
-  playerMeshes: THREEType.Object3D[];
   ready: Promise<void>;
-  whiteboardDisplay: Whiteboard;
-  actionPanelTarget?: THREEType.Object3D;
+  whiteboard: Whiteboard;
 }
 
 export function initClassroom(THREE: typeof THREEType, gameState: GameState): ClassroomInitResult {
@@ -67,15 +65,16 @@ export function initClassroom(THREE: typeof THREEType, gameState: GameState): Cl
   scene.add(screenLight);
 
   const playerMeshes: THREEType.Object3D[] = [];
+  scene.userData.playerMeshes = playerMeshes;
   const seatLayout = buildSeatLayout();
   const whiteboard = new Whiteboard(BOARD_SIZE.width, BOARD_SIZE.height, gameState);
-  const boardPos = new THREE.Vector3(0, 2.0, -ROOM.depth / 2 + 0.1);
+  const boardPos = new THREE.Vector3(0, 2.5, -ROOM.depth / 2 + 0.1);
   whiteboard.addToScene(scene, cssScene, boardPos, 0);
   scene.userData.whiteboard = whiteboard;
 
   const ready = loadClassroomAssets(THREE, scene, seatLayout, playerMeshes, gameState.students);
 
-  return { scene, cssScene, playerMeshes, ready, whiteboardDisplay: whiteboard };
+  return { scene, cssScene, ready, whiteboard: whiteboard };
 }
 
 function makeWall(
