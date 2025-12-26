@@ -1,0 +1,271 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>CSS3D Pointer Lock Demo</title>
+  <style>
+    html, body {
+      margin: 0;
+      height: 100%;
+      overflow: hidden;
+      background: #0f172a;
+      color: #e2e8f0;
+      font-family: "Inter", "Segoe UI", system-ui, sans-serif;
+    }
+    #app {
+      position: relative;
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+    }
+    #crosshair {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      width: 10px;
+      height: 10px;
+      margin-left: -5px;
+      margin-top: -5px;
+      border: 2px solid rgba(255, 255, 255, 0.7);
+      border-radius: 50%;
+      box-sizing: border-box;
+      pointer-events: none;
+      z-index: 5;
+    }
+    #hint {
+      position: absolute;
+      top: 12px;
+      left: 50%;
+      transform: translateX(-50%);
+      padding: 8px 12px;
+      background: rgba(15, 23, 42, 0.7);
+      border: 1px solid rgba(148, 163, 184, 0.4);
+      border-radius: 10px;
+      font-size: 13px;
+      z-index: 6;
+      pointer-events: none;
+    }
+    .panel {
+      width: 320px;
+      padding: 16px;
+      border-radius: 12px;
+      background: rgba(255, 255, 255, 0.95);
+      color: #0f172a;
+      box-shadow: 0 12px 40px rgba(0, 0, 0, 0.25);
+      border: 1px solid #e2e8f0;
+      backdrop-filter: blur(6px);
+    }
+    .panel h2 {
+      margin: 0 0 8px 0;
+    }
+    .panel button {
+      padding: 10px 14px;
+      font-size: 14px;
+      border-radius: 8px;
+      border: 1px solid #cbd5e1;
+      background: #f8fafc;
+      color: #0f172a;
+      cursor: pointer;
+      transition: all 140ms ease;
+    }
+    .panel button:hover {
+      background: #e0ecff;
+      border-color: #3b82f6;
+      margin-left: 4px;
+    }
+  </style>
+</head>
+<body>
+  <div id="app"></div>
+  <div id="crosshair"></div>
+  <div id="hint">Click anywhere to lock pointer. Hover/click the floating UI to interact.</div>
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "https://unpkg.com/three@0.161.0/build/three.module.js"
+      }
+    }
+  </script>
+  <script type="module">
+    import * as THREE from "https://unpkg.com/three@0.161.0/build/three.module.js";
+    import { PointerLockControls } from "https://unpkg.com/three@0.161.0/examples/jsm/controls/PointerLockControls.js";
+    import { CSS3DRenderer, CSS3DObject } from "https://unpkg.com/three@0.161.0/examples/jsm/renderers/CSS3DRenderer.js";
+
+    const app = document.getElementById("app");
+    const renderer = new THREE.WebGLRenderer({ antialias: true });
+    renderer.setPixelRatio(window.devicePixelRatio);
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.domElement.style.position = "absolute";
+    renderer.domElement.style.top = "0";
+    renderer.domElement.style.left = "0";
+    app.appendChild(renderer.domElement);
+
+    const cssRenderer = new CSS3DRenderer();
+    cssRenderer.setSize(window.innerWidth, window.innerHeight);
+    cssRenderer.domElement.style.position = "absolute";
+    cssRenderer.domElement.style.top = "0";
+    cssRenderer.domElement.style.left = "0";
+    cssRenderer.domElement.style.pointerEvents = "auto";
+    app.appendChild(cssRenderer.domElement);
+
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x0f172a);
+    const cssScene = new THREE.Scene();
+
+    const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 50);
+    camera.position.set(0, 1.6, 4);
+
+    const controls = new PointerLockControls(camera, renderer.domElement);
+    scene.add(controls.getObject());
+    const keys = new Set();
+    window.addEventListener("keydown", (e) => keys.add(e.code));
+    window.addEventListener("keyup", (e) => keys.delete(e.code));
+
+    const gridHelper = new THREE.GridHelper(40, 40, 0x334155, 0x1e293b);
+    scene.add(gridHelper);
+
+    const ambient = new THREE.HemisphereLight(0xffffff, 0x334155, 0.7);
+    scene.add(ambient);
+
+    // CSS3D panel
+    const uiRoot = document.createElement("div");
+    uiRoot.className = "panel";
+    uiRoot.innerHTML = `
+      <h2>CSS3D Panel</h2>
+      <p>Hover me, click the button, and move around with WASD.</p>
+      <p style="margin:4px 0 12px 0; color:#475569;">Tip: Press Esc to unlock for UI, click empty space to lock again.</p>
+      <button id="demo-btn">Click me</button>
+    `;
+    uiRoot.addEventListener("click", (e) => {
+      console.debug("[test2] panel click (DOM dispatch)", { isLocked: controls.isLocked, target: e.target });
+      e.stopPropagation();
+    });
+    uiRoot.querySelector("#demo-btn")?.addEventListener("click", () => {
+      console.log("CSS3D button clicked!");
+    });
+
+    const cssObj = new CSS3DObject(uiRoot);
+    cssObj.position.set(0, 1.5, -3);
+    cssObj.scale.setScalar(0.005); // shrink DOM to manageable size
+    cssScene.add(cssObj);
+
+    // Invisible mesh to catch raycasts and map to DOM
+    const panelPxWidth = 320;
+    const panelPxHeight = 200;
+    const panelScale = 0.005;
+    const panelWorldWidth = panelPxWidth * panelScale;
+    const panelWorldHeight = panelPxHeight * panelScale;
+    const group = new THREE.Group();
+    group.position.copy(cssObj.position);
+    const plane = new THREE.Mesh(
+      new THREE.PlaneGeometry(panelWorldWidth, panelWorldHeight),
+      new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.0, depthWrite: false })
+    );
+    group.add(plane);
+    cssObj.position.copy(group.position);
+    cssScene.add(cssObj);
+    scene.add(group);
+
+    const pickTargets = [plane];
+    let suppressClick = false;
+
+    function isOverPanel(target) {
+      return target && uiRoot.contains(target);
+    }
+
+    function lockPointer() {
+      if (!controls.isLocked) controls.lock();
+    }
+
+    function setPointerModeLocked(locked) {
+      document.getElementById("hint").textContent = locked
+        ? "Pointer locked (click to interact with UI via raycast)"
+        : "Click empty space to lock pointer. Hover/click with simulated hits.";
+    }
+
+    document.addEventListener("pointerlockchange", () => {
+      setPointerModeLocked(controls.isLocked);
+    });
+
+    const raycaster = new THREE.Raycaster();
+    const ndcCenter = new THREE.Vector2(0, 0);
+
+    function simulateClick(uv) {
+      const rect = uiRoot.getBoundingClientRect();
+      const clientX = rect.left + uv.x * rect.width;
+      const clientY = rect.top + (1 - uv.y) * rect.height;
+      console.debug("[test2] simulateClick", { uv: uv.toArray(), clientX, clientY, rect });
+      const target = document.elementFromPoint(clientX, clientY);
+      if (!target) return;
+      suppressClick = true;
+      target.dispatchEvent(
+        new MouseEvent("click", {
+          bubbles: true,
+          cancelable: true,
+          clientX,
+          clientY,
+          view: window,
+        })
+      );
+      // Release suppression after the synthetic click bubbles
+      setTimeout(() => { suppressClick = false; }, 0);
+    }
+
+    function handleSceneClick() {
+      if (!controls.isLocked) {
+        lockPointer();
+        return;
+      }
+      raycaster.setFromCamera(ndcCenter, camera);
+      const hits = raycaster.intersectObjects(pickTargets, false);
+      if (hits.length > 0 && hits[0].uv) {
+        simulateClick(hits[0].uv);
+      }
+    }
+
+    window.addEventListener("click", (e) => {
+      if (suppressClick) {
+        e.stopPropagation();
+        e.preventDefault();
+        return;
+      }
+      if (isOverPanel(e.target)) return;
+      handleSceneClick();
+    });
+
+    const clock = new THREE.Clock();
+    function updateMovement(delta) {
+      if (!controls.isLocked) return;
+      const dir = new THREE.Vector3();
+      const forward = (keys.has("KeyW") ? 1 : 0) - (keys.has("KeyS") ? 1 : 0);
+      const strafe = (keys.has("KeyD") ? 1 : 0) - (keys.has("KeyA") ? 1 : 0);
+      dir.set(strafe, 0, forward).normalize();
+      if (dir.lengthSq() > 0) {
+        const speed = 3.5;
+        dir.multiplyScalar(speed * delta);
+        controls.moveRight(dir.x);
+        controls.moveForward(dir.z);
+        const pos = camera.position;
+        pos.y = 1.6;
+      }
+    }
+
+    function onResize() {
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+      cssRenderer.setSize(window.innerWidth, window.innerHeight);
+    }
+    window.addEventListener("resize", onResize);
+
+    function animate() {
+      requestAnimationFrame(animate);
+      const delta = clock.getDelta();
+      updateMovement(delta);
+      renderer.render(scene, camera);
+      cssRenderer.render(cssScene, camera);
+    }
+    animate();
+  </script>
+</body>
+</html>
