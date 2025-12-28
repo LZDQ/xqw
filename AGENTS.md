@@ -12,4 +12,4 @@ Use `pnpm -s tsc --noEmit` to type check the project. Each commit should pass th
 
 - [x] Sensitivity added. ~~Mouse sensitivity normal on Mac but too slow on Arch Linux.~~
 - [ ] (Firefox only) When not in fullscreen mode, perspective rotation keeps going downward each update, probably because the center for calculating offset is not the same for adjusting mouse. This is probably Three.js's fault, but we will fix it later.
-- [ ] The contest modal's confirm button, when clicked using unlocked mouse, behaves differently than when clicked using the 3D pointer.
+- [x] Fixed. ~~The contest modal's confirm button, when clicked using unlocked mouse, behaves differently than when clicked using the 3D pointer.~~

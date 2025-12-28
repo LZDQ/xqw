@@ -62,6 +62,10 @@ function startScene(app: HTMLElement, gameState: GameState): void {
   scene.add(camera);
   pickTargets.push(whiteboard.mesh);
 
+  const rerenderWhiteboard = (): void => {
+    whiteboard.render(gameState);
+  };
+
   const clock = new THREE.Clock();
   const input = new InputController(camera, renderer.domElement);
   initSettingsHUD(app, input);
@@ -95,6 +99,7 @@ function startScene(app: HTMLElement, gameState: GameState): void {
 
   window.addEventListener("resize", onResize);
   window.addEventListener("click", onClick);
+  document.addEventListener("whiteboard:render", rerenderWhiteboard);
 
   onResize();
 

@@ -208,6 +208,8 @@ let needsRender = false;
 
 function requestRender(): void {
   needsRender = true;
+  // Also notify the host app so DOM clicks (outside simulated 3D hits) still trigger a re-render.
+  document.dispatchEvent(new Event("whiteboard:render"));
 }
 
 export function consumeRenderRequest(): boolean {
@@ -600,11 +602,13 @@ export function createWhiteboardUI(gameState: GameState): HTMLElement {
     const modal = createContestModal(activeContest, {
       onFinish: () => {
         if (pendingContestFinish) pendingContestFinish();
+        requestRender();
       },
       onClose: () => {
         activeContest = null;
         whiteboardView = "dashboard";
         pendingContestFinish = null;
+        requestRender();
       },
       tickMs: 500,
       cutoffScore: cutoffInfo.score,
