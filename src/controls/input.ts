@@ -1,13 +1,14 @@
+import { ROOM } from "src/scene/classroom";
 import * as THREE from "three";
 import { PointerLockControls } from "three/examples/jsm/controls/PointerLockControls.js";
 
-const bounds = { x: 6.5, z: 4.5 };
+const bounds = { x: ROOM.width / 2 - 0.5, z: ROOM.depth / 2 - 0.5 };
 
 export class InputController {
   private camera: THREE.PerspectiveCamera;
   private controls: PointerLockControls;
   private keys: Set<string>;
-  private walkSpeed = 3.5;
+  private walkSpeed = 4.5;
   private sensitivity = 1.0;
   private readonly onKeyDown: (e: KeyboardEvent) => void;
   private readonly onKeyUp: (e: KeyboardEvent) => void;

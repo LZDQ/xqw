@@ -63,7 +63,7 @@ export class Whiteboard {
 
   render(gameState: GameState): void {
     this.rootElement.replaceChildren(createWhiteboardUI(gameState));
-    console.debug("[whiteboard] render", this.rootElement);
+    // console.debug("[whiteboard] render", this.rootElement);
   }
 
   clickAction(actionId: ActionType): void {
@@ -79,7 +79,7 @@ export class Whiteboard {
   }
 
   simulateClick(uv: THREE.Vector2, gameState: GameState): void {
-    console.debug("[whiteboard] simulate click", uv);
+    // console.debug("[whiteboard] simulate click", uv);
     const rect = this.rootElement.getBoundingClientRect();
     const clientX = rect.left + uv.x * rect.width;
     const clientY = rect.bottom - uv.y * rect.height;
@@ -95,14 +95,8 @@ export class Whiteboard {
     });
     (evt as any)._whiteboardSynthetic = true;
     elementUnderPointer.dispatchEvent(evt);
-    this.render(gameState); // for debug
+    this.render(gameState); // force render again to update the whiteboard
   }
-
-  // update(): void {
-  //   this.cssObject.position.copy(this.mesh.position);
-  //   this.cssObject.quaternion.copy(this.mesh.quaternion);
-  //   this.cssObject.translateZ(0.01);
-  // }
 
   dispose(): void {
     if (this.mesh.parent) {

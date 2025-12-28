@@ -5,11 +5,11 @@ import type { GameState } from "../core/GameState.ts";
 import type { Student } from "../core/Student.ts";
 import { Whiteboard } from "./Whiteboard.ts";
 
-const ROOM = { width: 14, depth: 10, height: 4.5 };
+export const ROOM = { width: 14, depth: 20, height: 4.5 };
+export const BOARD_SIZE = { width: 11.2, height: 6.0 };
 // Use root-relative paths so dev server/static builds serve public assets correctly.
 const MODEL_BASE = "/assets/models/";
 const FALLBACK_TEXTURE = "/assets/textures/WOOD 1_0.jpeg";
-const BOARD_SIZE = { width: 5.6, height: 3.0 };
 const MODEL_SCALE: Record<AssetKey, number> = {
   desk: 0.4,        // doubled to restore 2x sizing
   chair: 0.01,
@@ -68,7 +68,7 @@ export function initClassroom(THREE: typeof THREEType, gameState: GameState): Cl
   scene.userData.playerMeshes = playerMeshes;
   const seatLayout = buildSeatLayout();
   const whiteboard = new Whiteboard(BOARD_SIZE.width, BOARD_SIZE.height);
-  const boardPos = new THREE.Vector3(0, 2.5, -ROOM.depth / 2 + 1e-4);
+  const boardPos = new THREE.Vector3(0, 4.0, -ROOM.depth / 2 + 1e-3);
   whiteboard.addToScene(scene, cssScene, boardPos, 0);
   scene.userData.whiteboard = whiteboard;
 
@@ -92,12 +92,12 @@ function makeWall(
 }
 
 function buildSeatLayout(): Seat[] {
-  const rows = 3;
+  const rows = 4;
   const cols = 3;
-  const startX = -3.5;
-  const startZ = -1.5;
   const dx = 3.5;
-  const dz = 2.0;
+  const dz = 3.0;
+  const startX = -(cols-1)/2*dx;
+  const startZ = -(rows-1)/2*dz;
   const seats: Seat[] = [];
   let idx = 1;
   for (let r = 0; r < rows; r++) {

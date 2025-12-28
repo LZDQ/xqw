@@ -1,5 +1,8 @@
 import type { GameState, RelaxOptionId } from "../core/GameState.ts";
-import { ACTIONS, type ActionType } from "../lib/enums.ts";
+import { ACTIONS, COMPETITION_NAME, type ActionType, type CompetitionName } from "../lib/enums.ts";
+import { COMPETITION_SCHEDULE } from "../lib/constants.ts";
+import { Contest, type ContestConfig } from "../core/Contest.ts";
+import { createContestModal } from "./modals/contest.tsx";
 import { createRelaxModal } from "./modals/relax.tsx";
 import { createTrainModal } from "./modals/train.tsx";
 
@@ -189,7 +192,7 @@ const BASE_GAME_WHITEBOARD_CSS = `
 }
 `;
 
-type WhiteboardView = "dashboard" | "relax" | "train";
+type WhiteboardView = "dashboard" | "relax" | "train" | "contest";
 let whiteboardView: WhiteboardView = "dashboard";
 let relaxSelection: RelaxOptionId = 1;
 let relaxStatusMessage: string | null = null;
@@ -198,6 +201,9 @@ let trainIntensity = 2;
 let trainStatusMessage: string | null = null;
 const LOG_LIMIT = 30;
 const whiteboardLogs: string[] = [];
+let activeContest: Contest | null = null;
+let activeContestLabel = "";
+let pendingContestFinish: (() => void) | null = null;
 
 function formatCurrency(value: number): string {
   return `¥${value.toLocaleString("zh-CN")}`;
@@ -277,9 +283,93 @@ function pushLog(message: string): void {
   if (whiteboardLogs.length > LOG_LIMIT) whiteboardLogs.pop();
 }
 
+function getNextOfficialContest(currentWeek: number): { name: CompetitionName; week: number } | null {
+  const upcoming = COMPETITION_SCHEDULE.filter((c) => !c.nationalTeam && c.week >= currentWeek)
+    .sort((a, b) => a.week - b.week);
+  if (upcoming.length === 0) return null;
+  return { name: upcoming[0].name, week: upcoming[0].week };
+}
+
+function formatContestLabel(name: CompetitionName): string {
+  return COMPETITION_NAME[name] ?? name;
+}
+
+function buildContestConfig(contestWeek: number): ContestConfig | null {
+  const def = COMPETITION_SCHEDULE.find((c) => !c.nationalTeam && c.week === contestWeek);
+  if (!def) return null;
+  const perScore = Math.max(10, Math.floor(def.maxScore / Math.max(1, def.numProblems)));
+  const problems = Array.from({ length: def.numProblems }, (_, idx) => {
+    const subtasks = [{ score: perScore, difficulty: def.difficulty }];
+    return {
+      id: idx,
+      tags: ["数据结构"],
+      difficulty: def.difficulty,
+      maxScore: perScore,
+      subtasks
+    };
+  });
+  return {
+    name: def.name,
+    duration: 240,
+    problems,
+    isMock: false
+  };
+}
+
 function createActionCards(gameState: GameState, appendLog: (msg: string) => void): HTMLElement {
   const wrapper = document.createElement("div");
   wrapper.className = "action-cards";
+
+  const contestToday = COMPETITION_SCHEDULE.find(
+    (c) => !c.nationalTeam && c.week === gameState.week
+  );
+
+  if (contestToday) {
+    const contestConfig = buildContestConfig(contestToday.week);
+    const startContest = (): void => {
+    if (!contestConfig) {
+      appendLog(`第 ${gameState.week} 周：未找到比赛配置`);
+      return;
+    }
+    activeContest = new Contest(contestConfig, gameState.students);
+    activeContestLabel = formatContestLabel(contestConfig.name as CompetitionName);
+    pendingContestFinish = () => {
+      activeContest?.updateGameState(gameState);
+      const finishedWeek = gameState.week;
+      pushLog(`第 ${finishedWeek} 周：完成 ${activeContestLabel}`);
+      gameState.advanceWeeks(1);
+      activeContest = null;
+      whiteboardView = "dashboard";
+      pendingContestFinish = null;
+    };
+    whiteboardView = "contest";
+  };
+
+    const card = document.createElement("div");
+    card.className = "action-card";
+    card.id = "action-compete";
+    card.dataset.action = "COMPETE";
+    card.style.border = "2px solid rgba(59,130,246,0.35)";
+    card.style.margin = "6px";
+
+    const cardTitle = document.createElement("div");
+    cardTitle.className = "card-title";
+    cardTitle.textContent = `参加 ${formatContestLabel(contestToday.name)}`;
+
+    const cardDesc = document.createElement("div");
+    cardDesc.className = "card-desc";
+    cardDesc.textContent = "正式比赛周，只能选择参赛";
+
+    card.appendChild(cardTitle);
+    card.appendChild(cardDesc);
+    card.addEventListener("click", startContest);
+    wrapper.appendChild(card);
+
+    const eventContainer = document.createElement("div");
+    eventContainer.id = "event-cards-container";
+    wrapper.appendChild(eventContainer);
+    return wrapper;
+  }
 
   const cards: Array<[ActionType, string, string]> = [
     ["TRAIN", ACTIONS.TRAIN, "安排学生进行专项训练，提高实力"],
@@ -451,6 +541,41 @@ export function createWhiteboardUI(gameState: GameState): HTMLElement {
     return root;
   }
 
+  if (whiteboardView === "contest") {
+    const row = document.createElement("div");
+    row.className = "row";
+    row.style.justifyContent = "center";
+    row.style.alignItems = "center";
+    row.style.paddingTop = "20px";
+    row.style.paddingBottom = "20px";
+    row.style.minHeight = "70vh";
+
+    if (!activeContest) {
+      const fallback = document.createElement("div");
+      fallback.className = "panel";
+      fallback.textContent = "未找到比赛实例，请返回重新进入。";
+      row.appendChild(fallback);
+      root.appendChild(row);
+      return root;
+    }
+
+    const modal = createContestModal(activeContest, {
+      onFinish: () => {
+        if (pendingContestFinish) pendingContestFinish();
+      },
+      onClose: () => {
+        activeContest = null;
+        whiteboardView = "dashboard";
+        pendingContestFinish = null;
+      },
+      tickMs: 500
+    });
+
+    row.appendChild(modal);
+    root.appendChild(row);
+    return root;
+  }
+
   const row = document.createElement("div");
   row.className = "row";
 
@@ -487,8 +612,17 @@ export function createWhiteboardUI(gameState: GameState): HTMLElement {
   const nextPanel = document.createElement("div");
   nextPanel.id = "next-competition-panel";
   nextPanel.className = "next-panel";
+  const upcomingContest = getNextOfficialContest(gameState.week);
+  const nextText = upcomingContest
+    ? (() => {
+        const weeksLeft = Math.max(0, upcomingContest.week - gameState.week);
+        return weeksLeft === 0
+          ? `${formatContestLabel(upcomingContest.name)}（本周）`
+          : `${formatContestLabel(upcomingContest.name)}（${weeksLeft} 周后）`;
+      })()
+    : "无";
   nextPanel.innerHTML = `
-    <div id="next-comp" style="margin-bottom:8px">无</div>
+    <div id="next-comp" style="margin-bottom:8px">${nextText}</div>
     <div id="daily-quote" class="small muted">一句话加载中...</div>
   `;
   nextPanelWrapper.appendChild(nextHeading);
