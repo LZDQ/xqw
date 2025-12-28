@@ -7,6 +7,7 @@ import { consumeRenderRequest, getWhiteboardView, type WhiteboardView } from "./
 import { showStartHUD } from "./ui/start.ts";
 import { initClassroom } from "./scene/classroom.ts";
 import { CSS3DRenderer } from "three/examples/jsm/renderers/CSS3DRenderer.js";
+import { StudentLabel } from "./scene/studentLabel.ts";
 import {
 	computeBoundsTree, disposeBoundsTree, acceleratedRaycast,
 } from 'three-mesh-bvh';
@@ -59,6 +60,7 @@ function startScene(app: HTMLElement, gameState: GameState): void {
     ready,
     whiteboard,
   } = initClassroom(THREE, gameState);
+  const studentLabel = new StudentLabel(THREE, cssScene, camera, gameState);
   gameState.scene = scene;
   scene.add(camera);
   pickTargets.push(whiteboard.mesh);
@@ -116,6 +118,9 @@ function startScene(app: HTMLElement, gameState: GameState): void {
     animateCount++;
     input.update(delta);
     currentHit = pickTargets.length > 0 ? pickTarget(raycaster, ndcCenter, camera, pickTargets) : null;
+    const studentHit = currentHit && currentHit.kind === "student" ? { target: currentHit.target } : null;
+    studentLabel.setTarget(studentHit);
+    studentLabel.tick();
     if (getWhiteboardView() !== previousWhiteboardView || consumeRenderRequest()) {
       whiteboard.render(gameState);
       previousWhiteboardView = getWhiteboardView();

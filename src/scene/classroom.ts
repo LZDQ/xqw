@@ -216,9 +216,15 @@ function renderSeat(
     const player = cloneAsset(assets.player);
     player.position.set(0, 0.85, 0.80);
     player.rotation.y = Math.PI;
-    attachStatusRing(THREE, player);
     tagPlayerHierarchy(player, `p${seat.seatId}`);
     tagStudentName(player, student.name);
+    tagStudentRef(player, student);
+    player.updateMatrixWorld(true);
+    const box = new THREE.Box3().setFromObject(player);
+    const size = box.getSize(new THREE.Vector3());
+    const labelOffset = size.y + 0.15;
+    player.userData.labelOffset = labelOffset;
+    player.traverse(child => { child.userData.labelOffset = labelOffset; });
     root.add(player);
     playerMeshes.push(player);
   }
@@ -238,14 +244,11 @@ function tagStudentName(root: THREEType.Object3D, name: string): void {
   });
 }
 
-function attachStatusRing(THREE: typeof THREEType, player: THREEType.Object3D): void{
-  const ringGeo = new THREE.RingGeometry(0.2, 0.32, 32);
-  const ringMat = new THREE.MeshBasicMaterial({ color: 0x7cc5ff, transparent: true, opacity: 0.6, side: THREE.DoubleSide });
-  const ring = new THREE.Mesh(ringGeo, ringMat);
-  ring.rotation.x = -Math.PI / 2;
-  ring.position.set(0, 0.02, 0);
-  player.add(ring);
-  player.userData.statusRing = ring;
+function tagStudentRef(root: THREEType.Object3D, student: Student): void {
+  root.userData.studentRef = student;
+  root.traverse(child => {
+    child.userData.studentRef = student;
+  });
 }
 
 function applyTextureIfMissing(

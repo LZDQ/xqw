@@ -1,5 +1,6 @@
 import type * as THREE from "three";
 import { Student } from "./Student.ts";
+import { TALENTS, type TalentName } from "./Talents.ts";
 import {
   AC_COMFORT_BONUS_PER_LEVEL,
   BASE_COMFORT_NORTH,
@@ -231,9 +232,20 @@ export class GameState {
       const mental = clamp(normal(mean, stddev), 0, 100);
       const student = new Student(generateName(this.provinceName, i), thinking, coding, mental);
       student.seatId = seatIds[i] ?? null;
+      this.assignRandomTalent(student);
       list.push(student);
     }
     return list;
+  }
+
+  private assignRandomTalent(student: Student): void {
+    const pool = TALENTS.filter(t => t.name !== "__talent_cleanup__");
+    if (pool.length === 0) return;
+    const idx = Math.floor(Math.random() * pool.length);
+    const choice = pool[idx]?.name as TalentName | undefined;
+    if (choice) {
+      student.addTalent(choice);
+    }
   }
 
   private assignSeats(count: number): number[] {
