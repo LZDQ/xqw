@@ -13,7 +13,7 @@ const CONTEST_CSS = `
 .modal{position:fixed;left:0;top:0;right:0;bottom:0;background:rgba(0,0,0,.45);display:flex;align-items:center;justify-content:center;z-index:9999;}
 .dialog{width:960px;max-width:96%;background:#fff;padding:18px;border-radius:10px;max-height:90vh;box-shadow:0 10px 40px rgba(0,0,0,0.18);display:flex;flex-direction:column;}
 .contest-body{flex:1;overflow:auto;min-height:200px;}
-.contest-footer{position:sticky;bottom:0;background:#fff;padding-top:8px;display:flex;justify-content:flex-end;margin-top:8px;}
+.contest-footer{align-self:center;margin-top:8px;}
 .btn{background:#2b6cb0;color:#fff;border:none;padding:8px 12px;border-radius:6px;cursor:pointer;display:inline-block;text-decoration:none;font-weight:700;}
 .btn.btn-ghost{background:transparent;border:1px solid #ddd;color:#333;}
 .contest-live-container{max-width:900px;margin:0 auto;}
@@ -66,14 +66,12 @@ export function createContestModal(contest: Contest, opts: ContestModalOptions =
   content.className = "contest-body";
   dialog.appendChild(content);
 
-  const footer = document.createElement("div");
-  footer.className = "contest-footer";
   const finishBtn = document.createElement("button");
-  finishBtn.className = "btn";
+  finishBtn.className = "btn contest-footer";
   finishBtn.textContent = "确定";
   finishBtn.style.display = "none";
-  footer.appendChild(finishBtn);
-  dialog.appendChild(footer);
+  finishBtn.style.minWidth = "80px";
+  dialog.appendChild(finishBtn);
 
   modal.appendChild(dialog);
 

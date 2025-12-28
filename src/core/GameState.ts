@@ -1,6 +1,7 @@
 import type * as THREE from "three";
 import { Student } from "./Student.ts";
 import { TALENTS, type TalentName } from "./Talents.ts";
+import { applyTalentPassives } from "./talentEffects.ts";
 import {
   AC_COMFORT_BONUS_PER_LEVEL,
   BASE_COMFORT_NORTH,
@@ -107,6 +108,8 @@ export interface TrainingResult {
   name: string;
   multiplier: number;
   boosts: Array<{ type: KnowledgeType; baseAmount: number; actualAmount: number }>;
+  thinkingGain: number;
+  codingGain: number;
 }
 export interface PerformTrainingResult {
   success: true;
@@ -233,6 +236,7 @@ export class GameState {
       const student = new Student(generateName(this.provinceName, i), thinking, coding, mental);
       student.seatId = seatIds[i] ?? null;
       this.assignRandomTalent(student);
+      applyTalentPassives(student);
       list.push(student);
     }
     return list;
@@ -548,8 +552,8 @@ export class GameState {
       const codingGain =
         uniform(1, 2.5) * abilityGainBase * computerMultiplier * TRAINING_EFFECT_MULTIPLIER;
 
-      s.thinking += thinkingGain;
-      s.coding += codingGain;
+      s.thinking = Math.max(0, Number((s.thinking || 0) + thinkingGain));
+      s.coding = Math.max(0, Number((s.coding || 0) + codingGain));
 
       let basePressure = clampedIntensity === 1 ? 15 : clampedIntensity === 2 ? 25 : 40;
       const difficultyPressure = Math.max(0, (task.difficulty - studentAbility) * 0.2);
@@ -575,7 +579,9 @@ export class GameState {
       results.push({
         name: s.name,
         multiplier: boostResult.multiplier,
-        boosts: boostResult.boosts
+        boosts: boostResult.boosts,
+        thinkingGain,
+        codingGain
       });
     }
 

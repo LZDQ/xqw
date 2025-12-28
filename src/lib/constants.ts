@@ -33,16 +33,16 @@ export const NORMAL_PROVINCE_TRAINING_QUALITY = 0.8;
 export const WEAK_PROVINCE_TRAINING_QUALITY = 0.3;
 
 /* 时间与赛季 */
-export const SEASON_WEEKS = 17;
+export const SEASON_WEEKS = 16;
 
 /* 比赛日程 */
 export const COMPETITION_SCHEDULE: readonly Competition[] = [
   // 第一轮：3,5,7,11,14  第二轮：17,19,21,25,28
-  { week: 3, name: "CSP_S1", difficulty: 65, maxScore: 100, numProblems: 1 },
-  { week: 5, name: "CSP_S2", difficulty: 145, maxScore: 400, numProblems: 4 },
-  { week: 7, name: "NOIP", difficulty: 205, maxScore: 400, numProblems: 4 },
-  { week: 11, name: "PROVINCIAL", difficulty: 340, maxScore: 600, numProblems: 6 },
-  { week: 14, name: "NOI", difficulty: 460, maxScore: 700, numProblems: 7 },
+  { week: 3, name: "CSP_S1", difficulty: 30, maxScore: 100, numProblems: 1 },
+  { week: 5, name: "CSP_S2", difficulty: 60, maxScore: 400, numProblems: 4 },
+  { week: 7, name: "NOIP", difficulty: 100, maxScore: 400, numProblems: 4 },
+  { week: 11, name: "PROVINCIAL", difficulty: 300, maxScore: 600, numProblems: 6 },
+  { week: 14, name: "NOI", difficulty: 400, maxScore: 700, numProblems: 7 },
 ];
 
 // 正式比赛题目难度系数配置

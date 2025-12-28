@@ -504,7 +504,11 @@ export function createWhiteboardUI(gameState: GameState): HTMLElement {
       pushLog(`第 ${actionWeek} 周：训练-${result.task.name}，强度 ${intensity}`);
       result.results.forEach((r) => {
         const boostStr = r.boosts.map((b) => `${b.type}+${b.actualAmount}`).join(", ");
-        pushLog(`  ${r.name}: 效率${Math.round(r.multiplier * 100)}% [${boostStr}]`);
+        pushLog(
+          `  ${r.name}: 效率${Math.round(r.multiplier * 100)}% [${boostStr}] 思维+${r.thinkingGain.toFixed(
+            1
+          )} 代码+${r.codingGain.toFixed(1)}`
+        );
       });
       trainStatusMessage = null;
       whiteboardView = "dashboard";
