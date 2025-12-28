@@ -3,6 +3,7 @@ import { InputController } from "./controls/input.ts";
 import type { GameState } from "./core/GameState.ts";
 import { initDebugHUD } from "./ui/debugHud.ts";
 import { initSettingsHUD, isSettingsOpen } from "./ui/settings.ts";
+import { consumeRenderRequest, getWhiteboardView, type WhiteboardView } from "./ui/whiteboard.tsx";
 import { showStartHUD } from "./ui/start.ts";
 import { initClassroom } from "./scene/classroom.ts";
 import { CSS3DRenderer } from "three/examples/jsm/renderers/CSS3DRenderer.js";
@@ -62,10 +63,6 @@ function startScene(app: HTMLElement, gameState: GameState): void {
   scene.add(camera);
   pickTargets.push(whiteboard.mesh);
 
-  const rerenderWhiteboard = (): void => {
-    whiteboard.render(gameState);
-  };
-
   const clock = new THREE.Clock();
   const input = new InputController(camera, renderer.domElement);
   initSettingsHUD(app, input);
@@ -91,7 +88,7 @@ function startScene(app: HTMLElement, gameState: GameState): void {
     if (!currentHit) return;
     if (currentHit.kind === "whiteboard") {
       if (whiteboard) {
-        whiteboard.simulateClick(currentHit.uv ?? new THREE.Vector2(0.5, 0.5), gameState);
+        whiteboard.simulateClick(currentHit.uv ?? new THREE.Vector2(0.5, 0.5));
       }
       return;
     }
@@ -99,17 +96,21 @@ function startScene(app: HTMLElement, gameState: GameState): void {
 
   window.addEventListener("resize", onResize);
   window.addEventListener("click", onClick);
-  document.addEventListener("whiteboard:render", rerenderWhiteboard);
 
   onResize();
 
   let animateCount = 0;
+  let previousWhiteboardView: WhiteboardView | null = null;
   function animate(): void {
     requestAnimationFrame(animate);
     const delta = clock.getDelta();
     animateCount++;
     input.update(delta);
     currentHit = pickTargets.length > 0 ? pickTarget(raycaster, ndcCenter, camera, pickTargets) : null;
+    if (getWhiteboardView() !== previousWhiteboardView || consumeRenderRequest()) {
+      whiteboard.render(gameState);
+      previousWhiteboardView = getWhiteboardView();
+    }
     debugHud.setTarget(currentHit?.label ?? "-");
     debugHud.update(animateCount);
     renderer.render(scene, camera);

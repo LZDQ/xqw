@@ -192,7 +192,7 @@ const BASE_GAME_WHITEBOARD_CSS = `
 }
 `;
 
-type WhiteboardView = "dashboard" | "relax" | "train" | "contest";
+export type WhiteboardView = "dashboard" | "relax" | "train" | "contest";
 let whiteboardView: WhiteboardView = "dashboard";
 let relaxSelection: RelaxOptionId = 1;
 let relaxStatusMessage: string | null = null;
@@ -206,10 +206,8 @@ let activeContestLabel = "";
 let pendingContestFinish: (() => void) | null = null;
 let needsRender = false;
 
-function requestRender(): void {
+export function requestRender(): void {
   needsRender = true;
-  // Also notify the host app so DOM clicks (outside simulated 3D hits) still trigger a re-render.
-  document.dispatchEvent(new Event("whiteboard:render"));
 }
 
 export function consumeRenderRequest(): boolean {

@@ -3,9 +3,7 @@ import { CSS3DObject } from "three/examples/jsm/renderers/CSS3DRenderer.js";
 import { GameState } from "../core/GameState.ts";
 import type { ActionType } from "../lib/enums.ts";
 import {
-  consumeRenderRequest,
   createWhiteboardUI,
-  getWhiteboardView,
 } from "../ui/whiteboard.tsx";
 
 export class Whiteboard {
@@ -82,7 +80,7 @@ export class Whiteboard {
     );
   }
 
-  simulateClick(uv: THREE.Vector2, gameState: GameState): void {
+  simulateClick(uv: THREE.Vector2): void {
     // console.debug("[whiteboard] simulate click", uv);
     const rect = this.rootElement.getBoundingClientRect();
     const clientX = rect.left + uv.x * rect.width;
@@ -90,7 +88,6 @@ export class Whiteboard {
     const elementUnderPointer = document.elementFromPoint(clientX, clientY);
     if (!elementUnderPointer) return;
 
-    const previousView = getWhiteboardView();
     const evt = new MouseEvent("click", {
       bubbles: true,
       cancelable: true,
@@ -100,11 +97,6 @@ export class Whiteboard {
     });
     (evt as any)._whiteboardSynthetic = true;
     elementUnderPointer.dispatchEvent(evt);
-    const shouldRender = previousView !== getWhiteboardView() || consumeRenderRequest();
-    if (shouldRender) {
-      console.debug("should render");
-      this.render(gameState);
-    }
   }
 
   dispose(): void {
