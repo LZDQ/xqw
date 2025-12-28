@@ -68,7 +68,13 @@ function startScene(app: HTMLElement, gameState: GameState): void {
   const debugHud = initDebugHUD(app, camera);
   const raycaster = new THREE.Raycaster();
   const ndcCenter = new THREE.Vector2(0, 0);
-  let currentHit: { kind: "student" | "whiteboard"; label: string; target: THREE.Object3D; uv?: THREE.Vector2 | null } | null = null;
+  let currentHit: {
+    kind: "student" | "whiteboard";
+    label: string;
+    target: THREE.Object3D;
+    uv?: THREE.Vector2 | null;
+    screen?: THREE.Vector2 | null;
+  } | null = null;
 
   function onResize(): void {
     camera.aspect = window.innerWidth / window.innerHeight;
@@ -87,7 +93,13 @@ function startScene(app: HTMLElement, gameState: GameState): void {
     if (!currentHit) return;
     if (currentHit.kind === "whiteboard") {
       if (whiteboard) {
-        whiteboard.simulateClick(currentHit.uv ?? new THREE.Vector2(0.5, 0.5), gameState);
+        whiteboard.simulateClick(
+          {
+            uv: currentHit.uv ?? new THREE.Vector2(0.5, 0.5),
+            screen: currentHit.screen ?? null,
+          },
+          gameState
+        );
       }
       return;
     }
@@ -127,14 +139,25 @@ function pickTarget(
   ndc: THREE.Vector2,
   camera: THREE.Camera,
   targets: THREE.Object3D[]
-): { kind: "student" | "whiteboard"; label: string; target: THREE.Object3D; uv?: THREE.Vector2 | null } | null {
+): {
+  kind: "student" | "whiteboard";
+  label: string;
+  target: THREE.Object3D;
+  uv?: THREE.Vector2 | null;
+  screen?: THREE.Vector2 | null;
+} | null {
   raycaster.setFromCamera(ndc, camera);
   const hits = raycaster.intersectObjects(targets, true);
   for (const hit of hits) {
     const info = describePick(hit.object);
     if (info) {
       if (info.kind === "whiteboard") {
-        return { ...info, target: hit.object, uv: hit.uv?.clone() ?? null };
+        const ndcPoint = hit.point.clone().project(camera);
+        const screen = new THREE.Vector2(
+          (ndcPoint.x + 1) * 0.5 * window.innerWidth,
+          (1 - ndcPoint.y) * 0.5 * window.innerHeight
+        );
+        return { ...info, target: hit.object, uv: hit.uv?.clone() ?? null, screen };
       }
       return info;
     }

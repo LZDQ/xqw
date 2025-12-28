@@ -82,11 +82,21 @@ export class Whiteboard {
     );
   }
 
-  simulateClick(uv: THREE.Vector2, gameState: GameState): void {
-    // console.debug("[whiteboard] simulate click", uv);
+  simulateClick(
+    hit: { uv?: THREE.Vector2 | null; screen?: THREE.Vector2 | null },
+    gameState: GameState
+  ): void {
+    // console.debug("[whiteboard] simulate click", hit);
     const rect = this.rootElement.getBoundingClientRect();
-    const clientX = rect.left + uv.x * rect.width;
-    const clientY = rect.bottom - uv.y * rect.height;
+    const hasScreen = hit.screen && Number.isFinite(hit.screen.x) && Number.isFinite(hit.screen.y);
+    const clientX =
+      hasScreen && hit.screen
+        ? hit.screen.x
+        : rect.left + (hit.uv?.x ?? 0.5) * rect.width;
+    const clientY =
+      hasScreen && hit.screen
+        ? hit.screen.y
+        : rect.bottom - (hit.uv?.y ?? 0.5) * rect.height;
     const elementUnderPointer = document.elementFromPoint(clientX, clientY);
     if (!elementUnderPointer) return;
 
