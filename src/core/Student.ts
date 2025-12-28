@@ -173,30 +173,6 @@ export class Student {
     return clamp(result, 0, 100);
   }
 
-  getPerformanceScore(difficulty: number, maxScore: number, knowledgeValue: number): number{
-    const comprehensive = this.getComprehensiveAbility();
-    const mentalIdx = this.getMentalIndex();
-    const knowledgeRequirement = Math.max(15, difficulty * 0.35);
-    let knowledgePenalty = 1.0;
-    if(knowledgeValue < knowledgeRequirement){
-      const knowledgeGap = knowledgeRequirement - knowledgeValue;
-      knowledgePenalty = Math.exp(-knowledgeGap / 15.0);
-      knowledgePenalty = Math.max(0.05, knowledgePenalty);
-    }
-
-    const knowledgeBonus = knowledgeValue * 0.5;
-    const effectiveAbility = comprehensive + knowledgeBonus;
-    let performanceRatio = sigmoid((effectiveAbility - difficulty) / 10.0);
-    performanceRatio = performanceRatio * knowledgePenalty;
-
-    const stabilityFactor = mentalIdx / 100.0;
-    const baseNoise = 0.05;
-    const sigmaPerformance = (100 - mentalIdx) / 200.0 + baseNoise;
-    const randomFactor = normal(0, sigmaPerformance);
-    const finalRatio = clamp(performanceRatio * stabilityFactor * (1 + randomFactor), 0, 1);
-    return Math.max(0, finalRatio * maxScore);
-  }
-
   calculateKnowledgeGain(base_gain: number, facility_bonus: number, sick_penalty: number): number{
     const learning_efficiency = (0.6 * (this.thinking / 100.0) + 0.4) * (1.0 - this.pressure / FATIGUE_FROM_PRESSURE);
     return Math.floor(base_gain * learning_efficiency * facility_bonus * sick_penalty);
@@ -329,9 +305,9 @@ function clamp(value: number, min: number, max: number): number{
   return Math.max(min, Math.min(max, value));
 }
 
-function sigmoid(x: number): number{
-  return 1 / (1 + Math.exp(-x));
-}
+// function sigmoid(x: number): number{
+//   return 1 / (1 + Math.exp(-x));
+// }
 
 function normal(mean = 0, std = 1): number{
   const u1 = Math.random() || Number.EPSILON;

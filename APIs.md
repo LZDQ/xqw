@@ -67,9 +67,61 @@
 - `simulateClick(uv, gameState)`: converts a raycast UV on the board plane into DOM `clientX/Y`, dispatches a synthetic click to the element under the pointer, and re-renders (currently for debugging).
 - `dispose()`: detaches the mesh/CSS object from parents and disposes geometry/materials; removes DOM root from the document.
 
+## Contest API (sketch) (`src/core/Contest.ts`)
+
+- Responsibility: encapsulate contest simulation migrated from `base-game/lib/competitions.js`; tracks contest setup, per-student progress, ticking loop, logging, and finish bookkeeping for the 3D UI.
+- Drive model: whiteboard (or another caller) owns the loop and calls `tick()` procedurally; the class does not schedule timers or hold render callbacks. UI pulls state/logs directly.
+- Dependencies: relies on `Student`, `GameState` (for post-contest updates), contest definitions (`COMPETITION_SCHEDULE`), and timing constants like `TICK_INTERVAL`.
+
+**Public fields**
+
+- `config`: contest definition `{ name, duration, isMock: boolean, problems: Array<{ id, tags, difficulty, maxScore, subtasks }> }`.
+- `students: ContestStudentState[]`: per-student contest states (wrapper around the source Student instances).
+- `currentTick: number`: how many ticks have elapsed.
+- `maxTicks: number`: total ticks for the contest (`duration / TICK_INTERVAL`).
+- `logs: ContestLog[]`: accumulated log entries (`{ tick, time, message, type, studentName, timestamp }`).
+
+**Constructor**
+
+- `constructor(contestConfig, students)`: clones the contest config, wraps incoming `Student` instances into `ContestStudentState`, seeds tick counters.
+
+**Public methods**
+
+- `tick()`: advance one contest tick; run per-student simulation, append logs, increment `currentTick`. No timers are scheduled.
+- `updateGameState(gameState: GameState)`: after the contest ends, inline the mistake system, unwrap students, and update the game state (student mental drift, ability boosts for mock contests, qualification/promotion maps for real contests). Throws an error if the contest is not ended yet.
+
+**Private helpers**
+
+- `selectProblem(state, student)`: default selection of next unsolved problem weighted by difficulty/ordering and talents; delegates to `state.getNextProblem()` so talents can override the behavior per instance.
+- `selectBestSubtask(student, problem, thinkingTime)`: pick the most suitable subtask (full score vs partial) considering abilities, knowledge, and time spent; injects stochasticity.
+- `attemptSubtask(student, problem, subtask)`: compute pass/fail based on thinking/coding difficulty, knowledge penalties, mental stability, and talent hooks.
+- `shouldSkipProblem(state, student)`: decide whether to skip after spending sufficient time relative to difficulty.
+- `getKnowledgeForProblem(student, problem)`: average the student’s knowledge over the problem’s tags.
+
+**ContestStudentState (nested helper)**
+
+- Responsibilities: wrap a `Student` during contest simulation, hold per-problem status, and expose overridable hooks that talents can patch (e.g., `getNextProblem()` for “稳扎稳打”).
+- Fields: `student` (original Student), `problems` (per-problem status with `currentSubtask`, `maxScoreEarned`, `solved`, `attemptedSubtasks`, `mistakePenalty`/`reason`), `currentTarget`, `totalScore`, `thinkingTime`, `recentlySkippedProblems`, `tick`, `totalTicks`, and optionally `custom`/`userData` for talent-specific state.
+- Methods: `getProblem(id)`, `updateScore(problemId, newScore)`, `markSolved(problemId, score)`, `getUnsolvedProblems()` (with skip filtering), `resetSkipLock()`, `getNextProblem()` (default chooser; designed for per-instance overrides by talents), and other bookkeeping helpers used by the simulator. All hooks are instance methods to allow monkey-patching per student.
+
+## Whiteboard UI (`src/ui/whiteboard.tsx`)
+
+- Responsibility: builds the CSS3D whiteboard DOM for the 3D scene: dashboard panels, actions, and in-modal flows (train, relax, contest).
+- Views: `dashboard` (default), `train`, `relax`, `contest`.
+- Next contest display: reads `COMPETITION_SCHEDULE`, shows the upcoming official contest and how many weeks remain (or “本周”).
+- Action cards: on contest weeks, replaces the four actions with a single highlighted “参加 <比赛>” card. Otherwise shows Train/Relax/Mock/Camp cards.
+- Contest flow: clicking the contest card creates an in-memory `Contest`, switches to `contest` view, renders the live contest modal inside the whiteboard. On finish, applies contest gains, logs the completion using the pre-advance week number, advances one week, and returns to dashboard. On close, just returns to dashboard.
+
+## Modals
+
+- `src/ui/modals/train.tsx`: training modal (select task/intensity, confirm/cancel) used by the whiteboard train view.
+- `src/ui/modals/relax.tsx`: entertainment modal (options grid, confirm/cancel/status) used by the whiteboard relax view.
+- `src/ui/modals/buttons.tsx`: shared circular confirm/cancel buttons for modals.
+- `src/ui/modals/contest.tsx`: live contest modal (student cards, progress/time header, log panel, pause/resume/skip/finish/close). Expects a `Contest` instance and callbacks `onFinish`/`onClose`; driven procedurally by the caller (whiteboard). Contains its own modal/dialog styles so it renders correctly inside the CSS3D whiteboard container.
 ## Student API (`src/core/Student.ts`)
 
+- Dependency graph: required by ContestStudentStates.
 - Core fields: `name`, `thinking`, `coding`, `mental`, `knowledge` (per `KnowledgeType`), `pressure`, `comfort`, `comfort_modifier`, `pressure_modifier`, `sick_weeks`, `seatId`, `active`, `talents: Set<string>`.
-- Ability helpers: `getAbilityAvg()`, `getKnowledgeTotal()`, `getComprehensiveAbility()`, `getMentalIndex()`, `getPerformanceScore(difficulty, maxScore, knowledgeValue)` (probabilistic contest score).
+- Ability helpers: `getAbilityAvg()`, `getKnowledgeTotal()`, `getComprehensiveAbility()`, `getMentalIndex()`.
 - Knowledge/ability mutators: `addKnowledge(type, amount)`, `addThinking(amount)`, `addCoding(amount)`.
 - Rendering assets: shared `visuals` texture bundle (`avatarTexture`, `statusRingTexture`, `ready` promise) used by avatars/status rings.
