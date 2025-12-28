@@ -41,9 +41,15 @@ import {
   type DifficultyConfig,
   type ProvinceConfig
 } from "../lib/config.ts";
-import type { CompetitionName, KnowledgeType } from "../lib/enums.ts";
+import type { CompetitionName, KnowledgeType, ProvinceStrength } from "../lib/enums.ts";
 import type { TrainingTask } from "../data/trainingTasks.ts";
 import { selectTrainingTasks } from "../data/trainingTasks.ts";
+import {
+  COMPETITION_BASE_CUTOFF,
+  COMPETITION_ORDER,
+  CUTOFF_FLUCTUATION,
+  SEASON_WEEKS
+} from "../lib/constants.ts";
 
 class Facilities {
   computer = 1;
@@ -132,6 +138,9 @@ export class GameState {
   totalExpenses = 0;
   qualification: [QualificationMap, QualificationMap];
   seasonEndTriggered = false;
+  gameEnded = false;
+  gameEndReason: string | null = null;
+  contestCutoffs: Array<Record<CompetitionName, number>>;
   completedCompetitions: Set<string> = new Set();
   careerCompetitions: Array<unknown> = [];
   provinceClimate: ClimateProfile | null = null;
@@ -163,6 +172,7 @@ export class GameState {
       this.createEmptyQualificationMap(),
       this.createEmptyQualificationMap()
     ];
+    this.contestCutoffs = [this.createEmptyCutoffMap(), this.createEmptyCutoffMap()];
 
     this.weeklyTrainingTasks = this.getTrainingTasks(6);
     this.updateWeather();
@@ -179,6 +189,20 @@ export class GameState {
       CTT_DAY3_4: new Set(),
       CTS: new Set(),
       IOI: new Set()
+    };
+  }
+
+  private createEmptyCutoffMap(): Record<CompetitionName, number> {
+    return {
+      CSP_S1: 0,
+      CSP_S2: 0,
+      NOIP: 0,
+      PROVINCIAL: 0,
+      NOI: 0,
+      CTT_DAY1_2: 0,
+      CTT_DAY3_4: 0,
+      CTS: 0,
+      IOI: 0
     };
   }
 
@@ -344,6 +368,56 @@ export class GameState {
       s.pressure_modifier = Math.max(0, (s.pressure_modifier || 0) - RECOVERY_RATE);
       s.comfort_modifier = Math.max(0, (s.comfort_modifier || 0) - RECOVERY_RATE);
     }
+  }
+
+  getSeasonIndexForWeek(week: number = this.week): number {
+    return Math.min(1, Math.floor((Math.max(1, week) - 1) / SEASON_WEEKS));
+  }
+
+  private getPreviousCompetition(name: CompetitionName): CompetitionName | null {
+    const idx = COMPETITION_ORDER.indexOf(name);
+    if (idx <= 0) return null;
+    return COMPETITION_ORDER[idx - 1] ?? null;
+  }
+
+  private getCutoffRatio(name: CompetitionName): number {
+    const provinceStrength = (this.provinceType || "NORMAL") as ProvinceStrength;
+    const base = COMPETITION_BASE_CUTOFF[name]?.[provinceStrength] ?? 0.5;
+    const fluct = uniform(-CUTOFF_FLUCTUATION, CUTOFF_FLUCTUATION);
+    return Math.max(0, base + fluct);
+  }
+
+  getContestCutoff(name: CompetitionName, totalMaxScore = 0): { ratio: number; score: number } {
+    const seasonIdx = this.getSeasonIndexForWeek();
+    const existing = this.contestCutoffs[seasonIdx][name];
+    const ratio = existing && existing > 0 ? existing : this.getCutoffRatio(name);
+    if (!existing || existing <= 0) {
+      this.contestCutoffs[seasonIdx][name] = ratio;
+    }
+    const score = totalMaxScore > 0 ? ratio * totalMaxScore : 0;
+    return { ratio, score };
+  }
+
+  getEligibleContestants(name: CompetitionName): Student[] {
+    const seasonIdx = this.getSeasonIndexForWeek();
+    const prev = this.getPreviousCompetition(name);
+    if (!prev) {
+      return this.students.filter((s) => s && s.active !== false);
+    }
+    const qualified = this.qualification[seasonIdx][prev] ?? new Set<string>();
+    return this.students.filter((s) => s && s.active !== false && qualified.has(s.name));
+  }
+
+  updateQualifications(name: CompetitionName, results: Array<{ student: Student; totalScore: number; maxScore: number }>): void {
+    const seasonIdx = this.getSeasonIndexForWeek();
+    const targetSet = this.qualification[seasonIdx][name] ?? new Set<string>();
+    const cutoff = this.getContestCutoff(name, results[0]?.maxScore ?? 0);
+    for (const r of results) {
+      if (r.totalScore >= cutoff.score) {
+        targetSet.add(r.student.name);
+      }
+    }
+    this.qualification[seasonIdx][name] = targetSet;
   }
 
   advanceWeeks(weeks = 1): void {
