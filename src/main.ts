@@ -59,6 +59,7 @@ function startScene(app: HTMLElement, gameState: GameState): void {
     cssScene,
     ready,
     whiteboard,
+    airConditioner,
   } = initClassroom(THREE, gameState);
   const studentLabel = new StudentLabel(THREE, cssScene, camera, gameState);
   gameState.scene = scene;
@@ -117,6 +118,7 @@ function startScene(app: HTMLElement, gameState: GameState): void {
     const delta = clock.getDelta();
     animateCount++;
     input.update(delta);
+    airConditioner.update(delta);
     currentHit = pickTargets.length > 0 ? pickTarget(raycaster, ndcCenter, camera, pickTargets) : null;
     const studentHit = currentHit && currentHit.kind === "student" ? { target: currentHit.target } : null;
     studentLabel.setTarget(studentHit);

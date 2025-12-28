@@ -4,8 +4,9 @@ import { clone as cloneSkinned } from "three/examples/jsm/utils/SkeletonUtils.js
 import type { GameState } from "../core/GameState.ts";
 import type { Student } from "../core/Student.ts";
 import { Whiteboard } from "./Whiteboard.ts";
+import { AirConditioner } from "../objects/AirConditioner.ts";
 
-export const ROOM = { width: 14, depth: 20, height: 4.5 };
+export const ROOM = { width: 14, depth: 20, height: 7.875 }; // height * 1.75
 export const BOARD_SIZE = { width: 11.2, height: 6.0 };
 // Use root-relative paths so dev server/static builds serve public assets correctly.
 const MODEL_BASE = "/assets/models/";
@@ -29,6 +30,7 @@ export interface ClassroomInitResult {
   cssScene: THREEType.Scene;
   ready: Promise<void>;
   whiteboard: Whiteboard;
+  airConditioner: AirConditioner;
 }
 
 export function initClassroom(THREE: typeof THREEType, gameState: GameState): ClassroomInitResult {
@@ -54,6 +56,14 @@ export function initClassroom(THREE: typeof THREEType, gameState: GameState): Cl
   walls.push(makeWall(THREE, ROOM.depth, ROOM.height, 0, -ROOM.width / 2, Math.PI / 2));
   walls.forEach(w => { w.material = wallMat; scene.add(w); });
 
+  const ceiling = new THREE.Mesh(
+    new THREE.PlaneGeometry(ROOM.width, ROOM.depth),
+    wallMat
+  );
+  ceiling.rotation.x = Math.PI / 2; // horizontal, facing downward
+  ceiling.position.set(0, ROOM.height, 0);
+  scene.add(ceiling);
+
   scene.add(new THREE.AmbientLight(0xffffff, 0.6));
   const keyLight = new THREE.DirectionalLight(0xffffff, 0.9);
   keyLight.position.set(5, 6, 3);
@@ -72,9 +82,21 @@ export function initClassroom(THREE: typeof THREEType, gameState: GameState): Cl
   whiteboard.addToScene(scene, cssScene, boardPos, 0);
   scene.userData.whiteboard = whiteboard;
 
+  const airConditioner = new AirConditioner({
+    scene,
+    position: new THREE.Vector3(-ROOM.width / 2 + 0.25, ROOM.height - 3.5, -ROOM.depth / 2 + 5.0),
+    modelUrl: "/assets/models/air_conditioner.glb",
+    initialTemperature: 24,
+    initiallyOn: true,
+  });
+  const acGroup = airConditioner.getGroup();
+  acGroup.rotation.y = 0; // rotated to side wall (clockwise 90deg from previous)
+  acGroup.scale.setScalar(0.4);    // user-adjusted size
+  scene.userData.airConditioner = airConditioner;
+
   const ready = loadClassroomAssets(THREE, scene, seatLayout, playerMeshes, gameState.students);
 
-  return { scene, cssScene, ready, whiteboard: whiteboard };
+  return { scene, cssScene, ready, whiteboard: whiteboard, airConditioner };
 }
 
 function makeWall(
