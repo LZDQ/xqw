@@ -13,10 +13,6 @@ export interface Competition {
   subtasksPerProblem?: number;
 }
 
-/* 时间与赛季 */
-export const ORIGINAL_SEASON_WEEKS = 52;
-export const SEASON_WEEKS = 32;
-
 /* 能力与知识权重 */
 export const KNOWLEDGE_WEIGHT = 0.6;
 export const ABILITY_WEIGHT = 0.4;
@@ -35,6 +31,9 @@ export const WEAK_PROVINCE_BUDGET = 40000;
 export const STRONG_PROVINCE_TRAINING_QUALITY = 1.3;
 export const NORMAL_PROVINCE_TRAINING_QUALITY = 0.8;
 export const WEAK_PROVINCE_TRAINING_QUALITY = 0.3;
+
+/* 时间与赛季 */
+export const SEASON_WEEKS = 17;
 
 /* 比赛日程 */
 export const COMPETITION_SCHEDULE: readonly Competition[] = [

@@ -110,9 +110,11 @@
 - Views: `dashboard` (default), `train`, `relax`, `contest`.
 - Next contest display: reads `COMPETITION_SCHEDULE`, shows the upcoming official contest and how many weeks remain (or “本周”).
 - Action cards: on contest weeks, replaces the four actions with a single highlighted “参加 <比赛>” card. Otherwise shows Train/Relax/Mock/Camp cards.
-- Contest flow: clicking the contest card creates an in-memory `Contest`, switches to `contest` view, renders the live contest modal inside the whiteboard. On finish, applies contest gains, logs the completion using the pre-advance week number, advances one week, and returns to dashboard. On close, just returns to dashboard.
+- Contest flow: clicking the contest card creates an in-memory `Contest`, switches to `contest` view, renders the live contest modal inside the whiteboard. On finish, applies contest gains, logs the completion using the pre-advance week number, advances one week, and returns to dashboard.
 
 ## Modals
+
+Each modal file exports a function which takes gameState and others as parameter and return a DOM element with callbacks being closure on the parameters.
 
 - `src/ui/modals/train.tsx`: training modal (select task/intensity, confirm/cancel) used by the whiteboard train view.
 - `src/ui/modals/relax.tsx`: entertainment modal (options grid, confirm/cancel/status) used by the whiteboard relax view.

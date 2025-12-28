@@ -1,9 +1,12 @@
 import { Contest, ContestStudentState, TICK_INTERVAL } from "../../core/Contest.ts";
+import { COMPETITION_NAME, type CompetitionName } from "../../lib/enums.ts";
 
 interface ContestModalOptions {
   onClose?: () => void;
   onFinish?: () => void;
   tickMs?: number;
+  cutoffScore?: number;
+  cutoffRatio?: number;
 }
 
 const CONTEST_CSS = `
@@ -83,11 +86,12 @@ export function createContestModal(contest: Contest, opts: ContestModalOptions =
   let renderedLogCount = 0;
   let finished = false;
   let showResults = false;
+  const contestTitle = COMPETITION_NAME[contest.config.name as CompetitionName] ?? contest.config.name;
 
   function renderResults(): void {
     content.innerHTML = "";
     const heading = document.createElement("h2");
-    heading.textContent = `${contest.config.name} 成绩`;
+    heading.textContent = `${contestTitle} 成绩`;
     const table = document.createElement("table");
     table.className = "result-table";
     table.innerHTML = `
@@ -98,15 +102,24 @@ export function createContestModal(contest: Contest, opts: ContestModalOptions =
     `;
     const tbody = table.querySelector("tbody")!;
     const sorted = [...contest.students].sort((a, b) => b.totalScore - a.totalScore);
+    const cutoffScore = opts.cutoffScore ?? 0;
     sorted.forEach((s, idx) => {
+      const passed = cutoffScore > 0 ? s.totalScore >= cutoffScore : null;
       const tr = document.createElement("tr");
       tr.innerHTML = `<td>${idx + 1}</td><td>${s.student.name}</td><td>${Math.round(
         s.totalScore
-      )}</td><td>晋级结果待接入</td>`;
+      )}</td><td>${passed === null ? "-" : passed ? "晋级" : "未晋级"}</td>`;
       tbody.appendChild(tr);
     });
     content.appendChild(heading);
     content.appendChild(table);
+    if (cutoffScore > 0) {
+      const cutoffNote = document.createElement("div");
+      cutoffNote.className = "small muted";
+      const cutoffPct = opts.cutoffRatio ? `（${Math.round((opts.cutoffRatio ?? 0) * 100)}%）` : "";
+      cutoffNote.textContent = `晋级线：${Math.round(cutoffScore)}${cutoffPct}`;
+      content.appendChild(cutoffNote);
+    }
   }
 
   function renderStudents(states: ContestStudentState[]): void {
@@ -156,7 +169,7 @@ export function createContestModal(contest: Contest, opts: ContestModalOptions =
     const slice = contest.logs.slice(renderedLogCount);
     for (const log of slice) {
       const row = document.createElement("div");
-      row.textContent = `[${Math.round(log.time)}m] ${log.studentName ? log.studentName + " " : ""}${log.message}`;
+      row.textContent = `[${Math.round(log.time)}m] ${log.message}`;
       row.style.marginBottom = "6px";
       const color =
         log.type === "solve" ? "#047857" : log.type === "skip" ? "#b45309" : "#1f2937";
@@ -190,7 +203,7 @@ export function createContestModal(contest: Contest, opts: ContestModalOptions =
     content.innerHTML = `
       <div class="contest-live-container" style="display:flex;gap:15px;">
         <div style="flex:2;">
-          <h2>${contest.config.name} - 实时模拟</h2>
+          <h2>${contestTitle} - 实时模拟</h2>
           <div class="contest-header">
             <div class="time-info">
               <span id="contest-current-time">0</span> / ${contest.config.duration} 分钟

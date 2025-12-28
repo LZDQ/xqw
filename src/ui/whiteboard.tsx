@@ -204,6 +204,21 @@ const whiteboardLogs: string[] = [];
 let activeContest: Contest | null = null;
 let activeContestLabel = "";
 let pendingContestFinish: (() => void) | null = null;
+let needsRender = false;
+
+function requestRender(): void {
+  needsRender = true;
+}
+
+export function consumeRenderRequest(): boolean {
+  const shouldRender = needsRender;
+  needsRender = false;
+  return shouldRender;
+}
+
+export function getWhiteboardView(): WhiteboardView {
+  return whiteboardView;
+}
 
 function formatCurrency(value: number): string {
   return `¥${value.toLocaleString("zh-CN")}`;
@@ -291,6 +306,7 @@ function getNextOfficialContest(currentWeek: number): { name: CompetitionName; w
 }
 
 function formatContestLabel(name: CompetitionName): string {
+  // console.debug('format contest label', name, COMPETITION_NAME[name]);
   return COMPETITION_NAME[name] ?? name;
 }
 
@@ -327,23 +343,39 @@ function createActionCards(gameState: GameState, appendLog: (msg: string) => voi
   if (contestToday) {
     const contestConfig = buildContestConfig(contestToday.week);
     const startContest = (): void => {
-    if (!contestConfig) {
-      appendLog(`第 ${gameState.week} 周：未找到比赛配置`);
-      return;
-    }
-    activeContest = new Contest(contestConfig, gameState.students);
-    activeContestLabel = formatContestLabel(contestConfig.name as CompetitionName);
-    pendingContestFinish = () => {
-      activeContest?.updateGameState(gameState);
-      const finishedWeek = gameState.week;
-      pushLog(`第 ${finishedWeek} 周：完成 ${activeContestLabel}`);
-      gameState.advanceWeeks(1);
-      activeContest = null;
-      whiteboardView = "dashboard";
-      pendingContestFinish = null;
+      if (!contestConfig) {
+        appendLog(`第 ${gameState.week} 周：未找到比赛配置`);
+        return;
+      }
+      const eligible = gameState.getEligibleContestants(contestToday.name);
+      if (eligible.length === 0) {
+        appendLog(`第 ${gameState.week} 周：${formatContestLabel(contestToday.name)} 无参赛学生，自动跳过`);
+        if (gameState.getSeasonIndexForWeek() === 1) {
+          const alive = gameState.students.filter((s) => s && s.active !== false).length;
+          if (alive === 0) {
+            gameState.gameEnded = true;
+            gameState.gameEndReason = "无学生可参赛，第二年结束";
+            gameState.seasonEndTriggered = true;
+          }
+        }
+        gameState.advanceWeeks(1);
+        whiteboardView = "dashboard";
+        requestRender();
+        return;
+      }
+      activeContest = new Contest(contestConfig, eligible);
+      activeContestLabel = formatContestLabel(contestConfig.name as CompetitionName);
+      pendingContestFinish = () => {
+        activeContest?.updateGameState(gameState);
+        const finishedWeek = gameState.week;
+        pushLog(`第 ${finishedWeek} 周：完成 ${activeContestLabel}`);
+        gameState.advanceWeeks(1);
+        activeContest = null;
+        whiteboardView = "dashboard";
+        pendingContestFinish = null;
+      };
+      whiteboardView = "contest";
     };
-    whiteboardView = "contest";
-  };
 
     const card = document.createElement("div");
     card.className = "action-card";
@@ -455,6 +487,7 @@ export function createWhiteboardUI(gameState: GameState): HTMLElement {
 
     const onSelect = (taskId: string): void => {
       trainSelection = taskId;
+      requestRender();
     };
     const onCancel = (): void => {
       whiteboardView = "dashboard";
@@ -465,6 +498,7 @@ export function createWhiteboardUI(gameState: GameState): HTMLElement {
       const result = gameState.performTraining(taskId, intensity);
       if (!result.success) {
         trainStatusMessage = result.error;
+        requestRender();
         return;
       }
       pushLog(`第 ${actionWeek} 周：训练-${result.task.name}，强度 ${intensity}`);
@@ -508,6 +542,7 @@ export function createWhiteboardUI(gameState: GameState): HTMLElement {
 
     const onSelect = (id: RelaxOptionId): void => {
       relaxSelection = id;
+      requestRender();
     };
     const onCancel = (): void => {
       whiteboardView = "dashboard";
@@ -519,6 +554,7 @@ export function createWhiteboardUI(gameState: GameState): HTMLElement {
       const result = gameState.performRelax(id);
       if (!result.success) {
         relaxStatusMessage = result.error;
+        requestRender();
         return;
       }
       pushLog(`第 ${actionWeek} 周：娱乐-${result.option.label}，费用 ${formatCurrency(result.cost)}`);
@@ -559,6 +595,8 @@ export function createWhiteboardUI(gameState: GameState): HTMLElement {
       return root;
     }
 
+    const maxScore = activeContest.config.problems.reduce((sum, p) => sum + p.maxScore, 0);
+    const cutoffInfo = gameState.getContestCutoff(activeContest.config.name as CompetitionName, maxScore);
     const modal = createContestModal(activeContest, {
       onFinish: () => {
         if (pendingContestFinish) pendingContestFinish();
@@ -568,7 +606,9 @@ export function createWhiteboardUI(gameState: GameState): HTMLElement {
         whiteboardView = "dashboard";
         pendingContestFinish = null;
       },
-      tickMs: 500
+      tickMs: 500,
+      cutoffScore: cutoffInfo.score,
+      cutoffRatio: cutoffInfo.ratio
     });
 
     row.appendChild(modal);
@@ -628,25 +668,6 @@ export function createWhiteboardUI(gameState: GameState): HTMLElement {
   nextPanelWrapper.appendChild(nextHeading);
   nextPanelWrapper.appendChild(nextPanel);
   leftCol.appendChild(nextPanelWrapper);
-
-  const speechWrapper = document.createElement("div");
-  speechWrapper.style.marginTop = "16px";
-  const speechHeading = document.createElement("h4");
-  speechHeading.style.margin = "0 0 8px 0";
-  speechHeading.textContent = "训话";
-  const speechInput = document.createElement("input");
-  speechInput.type = "text";
-  speechInput.id = "coach-speech-input";
-  speechInput.placeholder = "输入训话内容...";
-  speechInput.style.width = "100%";
-  speechInput.style.padding = "8px";
-  speechInput.style.border = "1px solid #ddd";
-  speechInput.style.borderRadius = "6px";
-  speechInput.style.fontSize = "14px";
-  speechInput.style.boxSizing = "border-box";
-  speechWrapper.appendChild(speechHeading);
-  speechWrapper.appendChild(speechInput);
-  leftCol.appendChild(speechWrapper);
 
   const logWrapper = document.createElement("div");
   logWrapper.style.marginTop = "16px";
