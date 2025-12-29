@@ -18,6 +18,12 @@ const MODEL_SCALE: Record<AssetKey, number> = {
 };
 
 type AssetKey = "desk" | "chair" | "player";
+const ASSETS_TO_LOAD: Array<[AssetKey, string]> = [
+  ["desk", "desk.glb"],
+  ["chair", "chair.glb"],
+  ["player", "nairong.glb"]
+];
+let prefetchPromise: Promise<void> | null = null;
 
 interface Seat {
   seatId: number;
@@ -31,6 +37,24 @@ export interface ClassroomInitResult {
   ready: Promise<void>;
   whiteboard: Whiteboard;
   airConditioner: AirConditioner;
+}
+
+export function prefetchClassroomAssets(THREE: typeof THREEType): Promise<void> {
+  if (prefetchPromise) return prefetchPromise;
+  const manager = new THREE.LoadingManager();
+  const loader = new GLTFLoader(manager);
+  loader.setPath(MODEL_BASE);
+  loader.setResourcePath(MODEL_BASE);
+
+  const loads = ASSETS_TO_LOAD.map(([key, file]) =>
+    loader.loadAsync(file).then(() => {
+      console.debug(`[acg3d] prefetched ${key}`);
+    }).catch((err) => {
+      console.warn(`[acg3d] prefetch failed for ${file}`, err);
+    })
+  );
+  prefetchPromise = Promise.all(loads).then(() => {});
+  return prefetchPromise;
 }
 
 export function initClassroom(THREE: typeof THREEType, gameState: GameState): ClassroomInitResult {
@@ -144,13 +168,7 @@ function loadClassroomAssets(
   loader.setPath(MODEL_BASE);
   loader.setResourcePath(MODEL_BASE);
 
-  const assetsToLoad: Array<[AssetKey, string]> = [
-    ["desk", "desk.glb"],
-    ["chair", "chair.glb"],
-    ["player", "nairong.glb"]
-  ];
-
-  const loadPromises = assetsToLoad.map(([key, file]) =>
+  const loadPromises = ASSETS_TO_LOAD.map(([key, file]) =>
     loader.loadAsync(file).then(gltf => ({ key, gltf })).catch(err => {
       console.error(`[acg3d] failed to load ${file}`, err);
       return null;

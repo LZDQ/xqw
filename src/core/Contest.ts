@@ -34,6 +34,7 @@ export interface ContestConfig {
   problems: ContestProblem[];
   isMock?: boolean;
   onlineContestType?: string;
+  gainMultiplier?: number;
 }
 
 export type ContestLogType = "info" | "talent" | "solve" | "select" | "skip";
@@ -156,7 +157,9 @@ export class Contest {
       totalScore: s.totalScore,
       maxScore: totalMaxScore,
     }));
-    gameState.updateQualifications(this.config.name as CompetitionName, results);
+    if (!this.config.isMock) {
+      gameState.updateQualifications(this.config.name as CompetitionName, results);
+    }
 
     const activeCount = gameState.students.filter((s) => s && s.active !== false).length;
     if (gameState.getSeasonIndexForWeek() === 1 && activeCount === 0) {
@@ -178,10 +181,11 @@ export class Contest {
     })();
     const ratio = CONTEST_GAIN_RATIOS[ratioKey] ?? CONTEST_GAIN_RATIOS.online_medium;
 
+    const gainMultiplier = this.config.gainMultiplier ?? 1;
     for (const state of this.students) {
-      const gainKnowledge = CONTEST_MAX_TOTAL_KNOWLEDGE_GAIN * ratio.knowledge;
-      const gainThinking = CONTEST_MAX_TOTAL_THINKING_GAIN * ratio.thinking;
-      const gainCoding = CONTEST_MAX_TOTAL_CODING_GAIN * ratio.coding;
+      const gainKnowledge = CONTEST_MAX_TOTAL_KNOWLEDGE_GAIN * ratio.knowledge * gainMultiplier;
+      const gainThinking = CONTEST_MAX_TOTAL_THINKING_GAIN * ratio.thinking * gainMultiplier;
+      const gainCoding = CONTEST_MAX_TOTAL_CODING_GAIN * ratio.coding * gainMultiplier;
 
       const perType = gainKnowledge / Object.keys(state.student.knowledge).length;
       for (const key of Object.keys(state.student.knowledge) as KnowledgeType[]) {

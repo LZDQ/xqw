@@ -5,7 +5,7 @@ import { initDebugHUD } from "./ui/debugHud.ts";
 import { initSettingsHUD, isSettingsOpen } from "./ui/settings.ts";
 import { consumeRenderRequest, getWhiteboardView, type WhiteboardView } from "./ui/whiteboard.tsx";
 import { showStartHUD } from "./ui/start.ts";
-import { initClassroom } from "./scene/classroom.ts";
+import { initClassroom, prefetchClassroomAssets } from "./scene/classroom.ts";
 import { CSS3DRenderer } from "three/examples/jsm/renderers/CSS3DRenderer.js";
 import { StudentLabel } from "./scene/studentLabel.ts";
 import {
@@ -22,6 +22,8 @@ async function bootstrap(): Promise<void> {
   if (!app) {
     throw new Error("Missing #app container");
   }
+
+  prefetchClassroomAssets(THREE).catch((err) => console.warn("prefetch failed", err));
 
   const gameState = await showStartHUD(app);
   startScene(app, gameState);
@@ -68,7 +70,12 @@ function startScene(app: HTMLElement, gameState: GameState): void {
 
   const clock = new THREE.Clock();
   const input = new InputController(camera, renderer.domElement);
-  initSettingsHUD(app, input);
+  const exitGame = (): void => {
+    gameState.gameEnded = true;
+    gameState.gameEndReason = "辞职";
+    window.location.reload();
+  };
+  initSettingsHUD(app, input, camera, exitGame);
   const debugHud = initDebugHUD(app, camera);
   const raycaster = new THREE.Raycaster();
   const ndcCenter = new THREE.Vector2(0, 0);

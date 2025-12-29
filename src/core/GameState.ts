@@ -25,6 +25,23 @@ import {
   STRONG_PROVINCE_TRAINING_QUALITY,
   NORMAL_PROVINCE_TRAINING_QUALITY,
   WEAK_PROVINCE_TRAINING_QUALITY,
+  OUTFIT_BASE_COST_BASIC,
+  OUTFIT_BASE_COST_ADVANCED,
+  OUTFIT_BASE_COST_INTERMEDIATE,
+  OUTFIT_KNOWLEDGE_BASE_BASIC,
+  OUTFIT_KNOWLEDGE_BASE_ADVANCED,
+  OUTFIT_KNOWLEDGE_BASE_INTERMEDIATE,
+  OUTFIT_ABILITY_BASE_BASIC,
+  OUTFIT_ABILITY_BASE_ADVANCED,
+  OUTFIT_ABILITY_BASE_INTERMEDIATE,
+  OUTFIT_PRESSURE_BASIC,
+  OUTFIT_PRESSURE_ADVANCED,
+  OUTFIT_PRESSURE_INTERMEDIATE,
+  OUTFIT_REPUTATION_DISCOUNT,
+  OUTFIT_REPUTATION_DISCOUNT_MULTIPLIER,
+  STRONG_PROVINCE_COST_MULTIPLIER,
+  WEAK_PROVINCE_COST_MULTIPLIER,
+  OUTFIT_EFFECT_MULTIPLIER,
   COST_MULTIPLIER,
   DORM_COMFORT_BONUS_PER_LEVEL,
   ENTERTAINMENT_COST_CS,
@@ -33,7 +50,8 @@ import {
   TRAINING_PRESSURE_MULTIPLIER_MEDIUM,
   TRAINING_PRESSURE_MULTIPLIER_LIGHT,
   TRAINING_EFFECT_MULTIPLIER,
-  PRESSURE_INCREASE_MULTIPLIER
+  PRESSURE_INCREASE_MULTIPLIER,
+  ONLINE_CONTEST_TYPES
 } from "../lib/constants.ts";
 import {
   PROVINCES,
@@ -43,7 +61,7 @@ import {
   type DifficultyConfig,
   type ProvinceConfig
 } from "../lib/config.ts";
-import type { CompetitionName, KnowledgeType, ProvinceStrength } from "../lib/enums.ts";
+import { KNOWLEDGE, type CompetitionName, type KnowledgeType, type ProvinceStrength } from "../lib/enums.ts";
 import type { TrainingTask } from "../data/trainingTasks.ts";
 import { selectTrainingTasks } from "../data/trainingTasks.ts";
 import {
@@ -52,6 +70,7 @@ import {
   CUTOFF_FLUCTUATION,
   SEASON_WEEKS
 } from "../lib/constants.ts";
+import type { ContestConfig } from "./Contest.ts";
 
 class Facilities {
   computer = 1;
@@ -103,6 +122,54 @@ export interface RelaxOption {
   label: string;
   desc: string;
   cost: number;
+}
+
+export type CampDifficulty = 1 | 2 | 3;
+export interface CampSelection {
+  difficulty: CampDifficulty;
+  provinceId: number;
+  studentNames: string[];
+  inspireTalents?: string[];
+}
+export interface CampResult {
+  success: true;
+  cost: number;
+  difficulty: CampDifficulty;
+  provinceName: string;
+  participants: string[];
+  message: string;
+  gains: Array<{
+    name: string;
+    thinking: number;
+    coding: number;
+    knowledge: Record<KnowledgeType, number>;
+  }>;
+  talentGains: Array<{
+    name: string;
+    talents: string[];
+  }>;
+}
+
+export interface MockContestSetup {
+  purchased?: boolean;
+  onlineIndex?: number;
+}
+
+export interface MockContestResult {
+  success: true;
+  cost: number;
+  label: string;
+  config: ContestConfig;
+  message: string;
+}
+
+export interface MockContestStartResult {
+  success: true;
+  cost: number;
+  label: string;
+  config: ContestConfig;
+  participants: Student[];
+  snapshots: Map<string, StudentSnapshot>;
 }
 export interface TrainingResult {
   name: string;
@@ -307,11 +374,6 @@ export class GameState {
     return expense;
   }
 
-  getExpenseMultiplier(): number {
-    const activeCount = this.students.filter((s) => s && s.active !== false).length;
-    return Math.max(0, activeCount * 0.3);
-  }
-
   getWeatherDescription(): string {
     let desc = this.weather;
     if (typeof this.temperature === "number") {
@@ -333,6 +395,276 @@ export class GameState {
     const tasks = selectTrainingTasks(count, avgAbility);
     this.weeklyTrainingTasks = tasks;
     return tasks;
+  }
+
+  private computeCampBaseCost(
+    difficulty: CampDifficulty,
+    provinceId: number,
+    participantCount: number
+  ): number {
+    const base =
+      difficulty === 2
+        ? OUTFIT_BASE_COST_INTERMEDIATE
+        : difficulty === 3
+        ? OUTFIT_BASE_COST_ADVANCED
+        : OUTFIT_BASE_COST_BASIC;
+    const target =
+      getProvinceById(provinceId) ??
+      this.provinceConfig ??
+      PROVINCES.find((p) => p.id === this.provinceId) ??
+      PROVINCES[0];
+    let adjustedBase = base;
+    if (target.type === "STRONG") {
+      adjustedBase = Math.floor(adjustedBase * STRONG_PROVINCE_COST_MULTIPLIER);
+    } else if (target.type === "WEAK") {
+      adjustedBase = Math.floor(adjustedBase * WEAK_PROVINCE_COST_MULTIPLIER);
+    }
+
+    const diffPenalty: Record<CampDifficulty, number> = { 1: 100, 2: 300, 3: 600 };
+    const n = Math.max(0, Number(participantCount || 0));
+    const raw = Math.max(0, Math.floor(adjustedBase + 18000 * n + (diffPenalty[difficulty] || 100)));
+
+    const rep = clamp(this.reputation, 0, 100);
+    const maxDiscount = OUTFIT_REPUTATION_DISCOUNT ?? 0.3;
+    const multiplier = OUTFIT_REPUTATION_DISCOUNT_MULTIPLIER ?? 1.0;
+    const discount = Math.min(0.5, (rep / 100) * maxDiscount * multiplier);
+    return Math.max(0, Math.floor(raw * (1 - discount)));
+  }
+
+  computeCampCost(
+    difficulty: CampDifficulty,
+    provinceId: number,
+    participantCount: number,
+    talentCount: number
+  ): { base: number; talent: number; total: number } {
+    const base = this.computeCampBaseCost(difficulty, provinceId, participantCount);
+    const talent = Math.max(0, talentCount * 12000);
+    return { base, talent, total: base + talent };
+  }
+
+  performCamp(selection: CampSelection): CampResult | { success: false; error: string } {
+    const province =
+      getProvinceById(selection.provinceId) ??
+      this.provinceConfig ??
+      PROVINCES.find((p) => p.id === this.provinceId) ??
+      PROVINCES[0];
+    const participants = this.students.filter(
+      (s) => s && s.active !== false && selection.studentNames.includes(s.name)
+    );
+    if (participants.length === 0) return { success: false, error: "请选择至少一名学生参加集训" };
+
+    const inspireTalents = selection.inspireTalents ?? [];
+    const costPreview = this.computeCampCost(
+      selection.difficulty,
+      province.id,
+      participants.length,
+      inspireTalents.length
+    );
+    let finalCost = costPreview.total;
+
+    // Apply talent-based cost reductions
+    try {
+      for (const s of participants) {
+        const results = s.triggerTalents?.("outing_cost_calculate", {
+          province: province.name,
+          difficulty: selection.difficulty,
+          participantCount: participants.length
+        });
+        if (Array.isArray(results)) {
+          for (const r of results) {
+            const res = (r as { result?: unknown })?.result ?? r;
+            if (
+              res &&
+              typeof res === "object" &&
+              (res as { action?: string }).action === "reduce_outing_cost" &&
+              typeof (res as { amount?: unknown }).amount === "number"
+            ) {
+              finalCost = Math.max(0, finalCost - Number((res as { amount: number }).amount));
+            }
+          }
+        }
+      }
+    } catch {
+      /* ignore reductions if talents throw */
+    }
+
+    if (this.budget < finalCost) {
+      return { success: false, error: "经费不足，无法外出集训" };
+    }
+    const charged = this.recordExpense(finalCost, `外出集训：${province.name}`);
+
+    const snapshots: Map<string, StudentSnapshot> = new Map();
+    const initialTalents: Map<string, Set<string>> = new Map();
+    for (const s of participants) {
+      snapshots.set(s.name, snapshotStudent(s));
+      initialTalents.set(s.name, new Set(s.talents));
+    }
+
+    const knowledgeBase =
+      selection.difficulty === 2
+        ? OUTFIT_KNOWLEDGE_BASE_INTERMEDIATE
+        : selection.difficulty === 3
+        ? OUTFIT_KNOWLEDGE_BASE_ADVANCED
+        : OUTFIT_KNOWLEDGE_BASE_BASIC;
+    const abilityBase =
+      selection.difficulty === 2
+        ? OUTFIT_ABILITY_BASE_INTERMEDIATE
+        : selection.difficulty === 3
+        ? OUTFIT_ABILITY_BASE_ADVANCED
+        : OUTFIT_ABILITY_BASE_BASIC;
+    const pressureBase =
+      selection.difficulty === 2
+        ? OUTFIT_PRESSURE_INTERMEDIATE
+        : selection.difficulty === 3
+        ? OUTFIT_PRESSURE_ADVANCED
+        : OUTFIT_PRESSURE_BASIC;
+
+    const knowledgeKeys: KnowledgeType[] = ["DS", "Graph", "String", "Math", "DP"];
+    const abilityThreshold = selection.difficulty === 3 ? 260 : selection.difficulty === 2 ? 180 : 120;
+    const trainingQuality = province.trainingQuality ?? 1.0;
+
+    for (const s of participants) {
+      const abilityScore =
+        typeof s.getComprehensiveAbility === "function"
+          ? s.getComprehensiveAbility()
+          : (s.thinking + s.coding) / 2.0;
+      const mismatch = abilityScore < abilityThreshold;
+      const knowledgeGainRaw =
+        uniform(knowledgeBase, knowledgeBase * 1.8) *
+        (mismatch ? 0.5 : 1.0) *
+        trainingQuality *
+        OUTFIT_EFFECT_MULTIPLIER;
+      const perType = Math.max(1, Math.floor(knowledgeGainRaw / knowledgeKeys.length));
+      for (const k of knowledgeKeys) {
+        s.addKnowledge(k, perType);
+      }
+
+      const abilityGain =
+        uniform(abilityBase, abilityBase * 2.0) *
+        (mismatch ? 0.6 : 1.0) *
+        trainingQuality *
+        OUTFIT_EFFECT_MULTIPLIER;
+      s.addThinking(abilityGain);
+      s.addCoding(abilityGain);
+      s.mental = clamp(s.mental + abilityGain * 0.5, 0, 100);
+
+      const pressureDelta = Math.floor(
+        pressureBase * (mismatch ? 1.5 : 1.0) * PRESSURE_INCREASE_MULTIPLIER
+      );
+      s.pressure = clamp(s.pressure + pressureDelta, 0, 100);
+      s.comfort = clamp(s.comfort - 10, 0, 100);
+
+      try {
+        s.triggerTalents?.("pressure_change", {
+          source: "outing",
+          amount: pressureDelta,
+          province: province.name,
+          difficulty: selection.difficulty
+        });
+        s.triggerTalents?.("outing_finished", {
+          province: province.name,
+          difficulty: selection.difficulty,
+          knowledge_gain: knowledgeGainRaw
+        });
+      } catch {
+        /* ignore talent errors */
+      }
+
+      if (inspireTalents.length > 0) {
+        for (const talent of inspireTalents) {
+          if (!s.hasTalent(talent) && Math.random() < 0.3) {
+            s.addTalent(talent);
+          }
+        }
+      }
+    }
+
+    this.weeksSinceEntertainment += 1;
+    this.advanceWeeks(1);
+
+    const perStudentGains = participants.map((s) => {
+      const before = snapshots.get(s.name);
+      const after = snapshotStudent(s);
+      return {
+        name: s.name,
+        thinking: before ? after.thinking - before.thinking : 0,
+        coding: before ? after.coding - before.coding : 0,
+        knowledge: before
+          ? (Object.keys(after.knowledge) as KnowledgeType[]).reduce<Record<KnowledgeType, number>>(
+              (acc, key) => {
+                acc[key] = after.knowledge[key] - (before.knowledge[key] ?? 0);
+                return acc;
+              },
+              { DS: 0, Graph: 0, String: 0, Math: 0, DP: 0 }
+            )
+          : after.knowledge
+      };
+    });
+
+    const talentGains = participants.map((s) => {
+      const before = initialTalents.get(s.name) ?? new Set<string>();
+      const newly = Array.from(s.talents).filter((t) => !before.has(t));
+      return { name: s.name, talents: newly };
+    });
+
+    return {
+      success: true,
+      cost: charged,
+      difficulty: selection.difficulty,
+      provinceName: province.name,
+      participants: participants.map((p) => p.name),
+      message: "外出集训完成",
+      gains: perStudentGains,
+      talentGains
+    };
+  }
+
+  startMockContest(
+    setup: MockContestSetup
+  ): MockContestStartResult | { success: false; error: string } {
+    const participants = this.students.filter((s) => s && s.active !== false);
+    if (participants.length === 0) return { success: false, error: "没有可参赛的学生" };
+    const knowledgeTags = Object.values(KNOWLEDGE);
+
+    const randomTags = (): string[] => {
+      const cnt = 1 + Math.floor(Math.random() * 2);
+      const chosen: string[] = [];
+      while (chosen.length < cnt) {
+        const pick = knowledgeTags[Math.floor(Math.random() * knowledgeTags.length)];
+        if (!chosen.includes(pick)) chosen.push(pick);
+      }
+      return chosen;
+    };
+
+    let contestConfig: ContestConfig | null = null;
+    let label = "";
+    let cost = 0;
+
+    const idx = Math.min(Math.max(0, setup.onlineIndex ?? 0), ONLINE_CONTEST_TYPES.length - 1);
+    const contestType = ONLINE_CONTEST_TYPES[idx] ?? ONLINE_CONTEST_TYPES[0];
+    const numProblems = Math.max(1, contestType.numProblems);
+    const perScore = 100;
+    contestConfig = {
+      name: contestType.displayName,
+      duration: 240,
+      isMock: true,
+      onlineContestType: contestType.name,
+      problems: Array.from({ length: numProblems }, (_, problemIdx) => ({
+        id: problemIdx,
+        tags: randomTags(),
+        difficulty: contestType.difficulty,
+        maxScore: perScore,
+        subtasks: [{ score: perScore, difficulty: contestType.difficulty }]
+      }))
+    };
+    label = `${contestType.displayName} 网赛`;
+
+    if (!contestConfig) return { success: false, error: "无法生成模拟赛配置" };
+
+    const snapshots: Map<string, StudentSnapshot> = new Map();
+    participants.forEach((s) => snapshots.set(s.name, snapshotStudent(s)));
+
+    return { success: true, cost, label, config: contestConfig, participants, snapshots };
   }
 
   updateWeather(): void {
@@ -461,7 +793,7 @@ export class GameState {
       return { success: false, error: "需要计算机等级 ≥ 3" };
     }
 
-    const adjustedCost = Math.round(option.cost * this.getExpenseMultiplier());
+    const adjustedCost = option.cost;
     if (this.budget < adjustedCost) {
       return { success: false, error: "经费不足" };
     }
@@ -595,6 +927,24 @@ export class GameState {
 
 function uniform(min: number, max: number): number {
   return min + Math.random() * (max - min);
+}
+
+interface StudentSnapshot {
+  thinking: number;
+  coding: number;
+  knowledge: Record<KnowledgeType, number>;
+}
+
+function snapshotStudent(student: Student): StudentSnapshot {
+  const knowledge = {} as Record<KnowledgeType, number>;
+  (Object.keys(student.knowledge) as KnowledgeType[]).forEach((k) => {
+    knowledge[k] = Number(student.knowledge[k]) || 0;
+  });
+  return {
+    thinking: Number(student.thinking || 0),
+    coding: Number(student.coding || 0),
+    knowledge
+  };
 }
 
 function normal(mean = 0, stddev = 1): number {

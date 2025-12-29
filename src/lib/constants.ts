@@ -261,13 +261,13 @@ export interface OnlineContestType {
 }
 
 export const ONLINE_CONTEST_TYPES: readonly OnlineContestType[] = [
-  { name: "Atcoder-ABC", numProblems: 7, difficulty: 120, displayName: "Atcoder ABC" },
-  { name: "Atcoder-ARC", numProblems: 4, difficulty: 230, displayName: "Atcoder ARC" },
-  { name: "Codeforces-Div3", numProblems: 5, difficulty: 120, displayName: "Codeforces Div.3" },
-  { name: "Codeforces-Div2", numProblems: 5, difficulty: 230, displayName: "Codeforces Div.2" },
-  { name: "Codeforces-Div1", numProblems: 5, difficulty: 370, displayName: "Codeforces Div.1" },
-  { name: "洛谷月赛", numProblems: 4, difficulty: 240, displayName: "洛谷月赛" },
-  { name: "Ucup", numProblems: 4, difficulty: 370, displayName: "Ucup" }
+  { name: "Atcoder-ABC", numProblems: 7, difficulty: 30, displayName: "Atcoder ABC" },
+  { name: "Atcoder-ARC", numProblems: 4, difficulty: 100, displayName: "Atcoder ARC" },
+  { name: "Codeforces-Div3", numProblems: 5, difficulty: 50, displayName: "Codeforces Div.3" },
+  { name: "Codeforces-Div2", numProblems: 5, difficulty: 100, displayName: "Codeforces Div.2" },
+  { name: "Codeforces-Div1", numProblems: 5, difficulty: 150, displayName: "Codeforces Div.1" },
+  { name: "洛谷月赛", numProblems: 4, difficulty: 80, displayName: "洛谷月赛" },
+  { name: "Ucup", numProblems: 4, difficulty: 150, displayName: "Ucup" }
 ];
 
 /* 娱乐 */
