@@ -61,6 +61,7 @@ import {
   type DifficultyConfig,
   type ProvinceConfig
 } from "../lib/config.ts";
+import { STUDENT_NAME_POOL } from "../data/studentNames.ts";
 import { KNOWLEDGE, type CompetitionName, type KnowledgeType, type ProvinceStrength } from "../lib/enums.ts";
 import type { TrainingTask } from "../data/trainingTasks.ts";
 import { selectTrainingTasks } from "../data/trainingTasks.ts";
@@ -217,6 +218,7 @@ export class GameState {
   provinceClimate: ClimateProfile | null = null;
   scene: THREE.Scene | null = null;
   weeklyTrainingTasks: TrainingTask[] = [];
+  private namePool: string[] = [];
 
   constructor(difficulty: number, provinceId: number, numStudents: number) {
     this.difficultyConfig = getDifficultyById(difficulty) ?? getDifficultyById(2);
@@ -235,6 +237,7 @@ export class GameState {
         (this.difficultyConfig?.budgetMultiplier ?? 1.0)
     );
 
+    this.refillNamePool();
     const cappedStudents = Math.min(9, Math.max(1, numStudents));
     this.initialStudents = cappedStudents;
     this.students = this.createStudents(cappedStudents);
@@ -300,7 +303,7 @@ export class GameState {
       const thinking = clamp(normal(mean, stddev), 0, 100);
       const coding = clamp(normal(mean, stddev), 0, 100);
       const mental = clamp(normal(mean, stddev), 0, 100);
-      const student = new Student(generateName(this.provinceName, i), thinking, coding, mental);
+      const student = new Student(this.drawStudentName(i), thinking, coding, mental);
       student.seatId = seatIds[i] ?? null;
       this.assignRandomTalent(student);
       applyTalentPassives(student);
@@ -327,6 +330,23 @@ export class GameState {
       [available[i], available[j]] = [available[j], available[i]];
     }
     return available.slice(0, count);
+  }
+
+  private refillNamePool(): void {
+    const unique = Array.from(new Set(STUDENT_NAME_POOL));
+    this.namePool = unique.slice();
+    for (let i = this.namePool.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [this.namePool[i], this.namePool[j]] = [this.namePool[j], this.namePool[i]];
+    }
+  }
+
+  private drawStudentName(idx: number): string {
+    if (this.namePool.length === 0) {
+      this.refillNamePool();
+    }
+    const name = this.namePool.pop();
+    return name ?? `学生-${idx + 1}`;
   }
 
   getWeatherFactor(): number {
@@ -986,8 +1006,4 @@ function applyTaskBoosts(student: Student, task: TrainingTask): { multiplier: nu
     actualAmount: Math.floor(boost.amount * multiplier)
   }));
   return { multiplier, boosts };
-}
-
-function generateName(region: string, idx: number): string {
-  return `${region || "学生"}-${idx + 1}`;
 }
