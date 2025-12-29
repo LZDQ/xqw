@@ -307,11 +307,6 @@ export class GameState {
     return expense;
   }
 
-  getExpenseMultiplier(): number {
-    const activeCount = this.students.filter((s) => s && s.active !== false).length;
-    return Math.max(0, activeCount * 0.3);
-  }
-
   getWeatherDescription(): string {
     let desc = this.weather;
     if (typeof this.temperature === "number") {
@@ -461,7 +456,7 @@ export class GameState {
       return { success: false, error: "需要计算机等级 ≥ 3" };
     }
 
-    const adjustedCost = Math.round(option.cost * this.getExpenseMultiplier());
+    const adjustedCost = option.cost;
     if (this.budget < adjustedCost) {
       return { success: false, error: "经费不足" };
     }
