@@ -1,7 +1,7 @@
 import type * as THREEType from "three";
 
 export interface DebugHUDController {
-  update: (animateCount: number) => void;
+  update: () => void;
   setTarget: (label: string) => void;
   dispose: () => void;
 }
@@ -24,16 +24,11 @@ export function initDebugHUD(parent: HTMLElement, camera: THREEType.Camera): Deb
       <span class="debug-hud__label">Target</span>
       <span class="debug-hud__value" data-target></span>
     </div>
-    <div class="debug-hud__row">
-      <span class="debug-hud__label">Animate Count</span>
-      <span class="debug-hud__value" data-animate-count></span>
-    </div>
   `;
 
   const eyeValue = container.querySelector<HTMLElement>("[data-eye]");
   const targetValue = container.querySelector<HTMLElement>("[data-target]");
-  const animateCountValue = container.querySelector<HTMLElement>("[data-animate-count]");
-  if (!eyeValue || !targetValue || !animateCountValue) {
+  if (!eyeValue || !targetValue) {
     throw new Error("Failed to initialize debug HUD");
   }
 
@@ -43,11 +38,10 @@ export function initDebugHUD(parent: HTMLElement, camera: THREEType.Camera): Deb
     targetLabel = label || "-";
   };
 
-  const update = (animateCount: number): void => {
+  const update = (): void => {
     const { x, y, z } = camera.position;
     eyeValue.textContent = `${fmt(x)}, ${fmt(y)}, ${fmt(z)}`;
     targetValue.textContent = targetLabel;
-    animateCountValue.textContent = `${animateCount}`;
   };
 
   const dispose = (): void => {
@@ -55,7 +49,7 @@ export function initDebugHUD(parent: HTMLElement, camera: THREEType.Camera): Deb
   };
 
   parent.appendChild(container);
-  update(0);
+  update();
   return { update, setTarget, dispose };
 }
 

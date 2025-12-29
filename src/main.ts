@@ -118,12 +118,10 @@ function startScene(app: HTMLElement, gameState: GameState): void {
 
   onResize();
 
-  let animateCount = 0;
   let previousWhiteboardView: WhiteboardView | null = null;
   function animate(): void {
     requestAnimationFrame(animate);
     const delta = clock.getDelta();
-    animateCount++;
     input.update(delta);
     airConditioner.update(delta);
     currentHit = pickTargets.length > 0 ? pickTarget(raycaster, ndcCenter, camera, pickTargets) : null;
@@ -135,7 +133,7 @@ function startScene(app: HTMLElement, gameState: GameState): void {
       previousWhiteboardView = getWhiteboardView();
     }
     debugHud.setTarget(currentHit?.label ?? "-");
-    debugHud.update(animateCount);
+    debugHud.update();
     renderer.render(scene, camera);
     cssRenderer.render(cssScene, camera);
   }
