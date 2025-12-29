@@ -24,7 +24,7 @@ interface CampModalProps {
 }
 
 const CAMP_MODAL_STYLE = `
-.camp-panel { max-width: 1200px; width:100%; display:flex; flex-direction:column; gap:14px; max-height:82vh; overflow:auto; }
+.camp-panel { max-width: 1280px; width:100%; display:flex; flex-direction:column; gap:14px; max-height:90vh; overflow:auto; }
 .camp-panel.stage-two { max-height: none; overflow: visible; }
 .pill-row { display:flex; gap:10px; flex-wrap:wrap; }
 .pill { padding:10px 14px; border-radius:10px; border:1px solid #e5e7eb; cursor:pointer; font-weight:700; background:#fff; }
@@ -41,7 +41,7 @@ const CAMP_MODAL_STYLE = `
 .camp-student:hover .student-card { box-shadow:0 12px 26px rgba(0,0,0,0.12); }
 .camp-student.selected { background: linear-gradient(135deg, rgba(147,197,253,0.32), rgba(219,234,254,0.65)); box-shadow:0 0 0 3px rgba(147,197,253,0.85); }
 .camp-student.selected .student-card { border-color:#93c5fd; box-shadow:0 10px 22px rgba(59,130,246,0.16); }
-.talent-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(160px,1fr)); gap:8px; max-height:220px; overflow:auto; }
+.talent-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(160px,1fr)); gap:8px; max-height:320px; overflow:auto; }
 .talent-card { border:1px solid #e2e8f0; border-radius:8px; padding:8px; cursor:pointer; }
 .talent-card.selected { border-color:#2563eb; box-shadow:0 2px 8px rgba(37,99,235,0.15); }
 .helper { color:#666; font-size:13px; }

@@ -13,9 +13,13 @@ const BASE_GAME_WHITEBOARD_CSS = `
   font-family: "PingFang SC", "Microsoft YaHei", Arial, Helvetica, sans-serif;
   color: #222;
   background: #f7f7f8;
-  padding: 16px;
+  padding: 18px;
   margin: 0;
   box-sizing: border-box;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
 }
 #whiteboard-content.whiteboard-ui * {
   box-sizing: border-box;
@@ -184,7 +188,8 @@ const BASE_GAME_WHITEBOARD_CSS = `
   background: #f8fafc;
 }
 #whiteboard-content.whiteboard-ui .wb-log {
-  height: 80px;
+  height: 180px;
+  max-height: 240px;
   overflow: auto;
   border: 1px solid #eee;
   padding: 8px;

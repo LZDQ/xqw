@@ -23,6 +23,7 @@ export class Whiteboard {
     root.style.willChange = "transform";
     root.style.backfaceVisibility = "hidden";
     root.style.pointerEvents = "auto";
+    root.style.background = "#f7f7f8";
     this.rootElement = root;
 
     this.cssObject = new CSS3DObject(this.rootElement);
