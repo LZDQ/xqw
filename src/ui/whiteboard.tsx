@@ -1,10 +1,12 @@
-import type { GameState, RelaxOptionId } from "../core/GameState.ts";
+import type { CampDifficulty, GameState, RelaxOptionId } from "../core/GameState.ts";
 import { ACTIONS, COMPETITION_NAME, type ActionType, type CompetitionName } from "../lib/enums.ts";
 import { COMPETITION_SCHEDULE } from "../lib/constants.ts";
 import { Contest, type ContestConfig } from "../core/Contest.ts";
 import { createContestModal } from "./modals/contest.tsx";
 import { createRelaxModal } from "./modals/relax.tsx";
 import { createTrainModal } from "./modals/train.tsx";
+import { createMockModal } from "./modals/mock.tsx";
+import { createCampModal } from "./modals/camp.tsx";
 
 const BASE_GAME_WHITEBOARD_CSS = `
 #whiteboard-content.whiteboard-ui {
@@ -192,13 +194,22 @@ const BASE_GAME_WHITEBOARD_CSS = `
 }
 `;
 
-export type WhiteboardView = "dashboard" | "relax" | "train" | "contest";
+export type WhiteboardView = "dashboard" | "relax" | "train" | "contest" | "mock" | "camp";
 let whiteboardView: WhiteboardView = "dashboard";
 let relaxSelection: RelaxOptionId = 1;
 let relaxStatusMessage: string | null = null;
 let trainSelection: string | null = null;
 let trainIntensity = 2;
 let trainStatusMessage: string | null = null;
+let mockOnlineIndex = 0;
+let mockStatusMessage: string | null = null;
+let campDifficulty: CampDifficulty = 1;
+let campProvinceId = 1;
+let campSelectedStudents: Set<string> = new Set();
+let campSelectedTalents: Set<string> = new Set();
+let campStatusMessage: string | null = null;
+let campStep: 1 | 2 = 1;
+let mockSnapshots: Map<string, { thinking: number; coding: number; knowledge: Record<string, number> }> | null = null;
 const LOG_LIMIT = 30;
 const whiteboardLogs: string[] = [];
 let activeContest: Contest | null = null;
@@ -371,6 +382,7 @@ function createActionCards(gameState: GameState, appendLog: (msg: string) => voi
         pushLog(`第 ${finishedWeek} 周：完成 ${activeContestLabel}`);
         gameState.advanceWeeks(1);
         activeContest = null;
+        mockSnapshots = null;
         whiteboardView = "dashboard";
         pendingContestFinish = null;
       };
@@ -423,6 +435,24 @@ function createActionCards(gameState: GameState, appendLog: (msg: string) => voi
     if (action === "RELAX") {
       whiteboardView = "relax";
       relaxStatusMessage = null;
+      return;
+    }
+    if (action === "MOCK") {
+      whiteboardView = "mock";
+      mockStatusMessage = null;
+      mockSnapshots = null;
+      return;
+    }
+    if (action === "CAMP") {
+      whiteboardView = "camp";
+      campStatusMessage = null;
+      campStep = 1;
+      if (campProvinceId <= 0) campProvinceId = gameState.provinceId || 1;
+      if (campSelectedStudents.size === 0) {
+        gameState.students
+          .filter((s) => s && s.active !== false)
+          .forEach((s) => campSelectedStudents.add(s.name));
+      }
       return;
     }
     appendLog(`第 ${gameState.week} 周：选择了 ${label}，当前经费 ${formatCurrency(gameState.budget)}`);
@@ -574,6 +604,193 @@ export function createWhiteboardUI(gameState: GameState): HTMLElement {
       onCancel,
       onConfirm,
       status: relaxStatusMessage
+    });
+
+    row.appendChild(modal);
+    root.appendChild(row);
+    return root;
+  }
+
+  if (whiteboardView === "mock") {
+    const row = document.createElement("div");
+    row.className = "row";
+    row.style.justifyContent = "center";
+    row.style.alignItems = "center";
+    row.style.paddingTop = "20px";
+    row.style.paddingBottom = "20px";
+    row.style.minHeight = "70vh";
+
+    const modal = createMockModal({
+      onlineIndex: mockOnlineIndex,
+      onSelectOnline: (idx) => {
+        mockOnlineIndex = idx;
+        mockStatusMessage = null;
+        requestRender();
+      },
+      onConfirm: (setup) => {
+        const start = gameState.startMockContest(setup);
+        if (!start.success) {
+          mockStatusMessage = start.error;
+          requestRender();
+          return;
+        }
+        const eligible = start.participants;
+        if (eligible.length === 0) {
+          mockStatusMessage = "没有可参赛的学生";
+          requestRender();
+          return;
+        }
+        activeContest = new Contest(start.config, eligible);
+        activeContestLabel = start.label;
+        mockSnapshots = start.snapshots as Map<string, { thinking: number; coding: number; knowledge: Record<string, number> }>;
+        pendingContestFinish = () => {
+          activeContest?.updateGameState(gameState);
+          const finishedWeek = gameState.week;
+          const gains: string[] = [];
+          if (mockSnapshots) {
+            const afterMap = new Map(
+              eligible.map((s) => [
+                s.name,
+                {
+                  thinking: s.thinking,
+                  coding: s.coding,
+                  knowledge: { ...s.knowledge }
+                }
+              ])
+            );
+            afterMap.forEach((after, name) => {
+              const before = mockSnapshots?.get(name);
+              if (!before) return;
+              const kLabels: string[] = [];
+              (Object.keys(after.knowledge) as Array<keyof typeof after.knowledge>).forEach((k) => {
+                const delta = after.knowledge[k] - (before.knowledge[k] ?? 0);
+                if (Math.abs(delta) > 1e-6) kLabels.push(`${k}+${delta.toFixed(1)}`);
+              });
+              const dThink = after.thinking - before.thinking;
+              const dCode = after.coding - before.coding;
+              gains.push(`${name}: 思维+${dThink.toFixed(1)} 代码+${dCode.toFixed(1)} ${kLabels.join(" ")}`);
+            });
+          }
+          pushLog(`第 ${finishedWeek} 周：模拟赛-${start.label}，费用 ${formatCurrency(start.cost)}`);
+          gains.forEach((g) => pushLog(`  ${g}`));
+          gameState.weeksSinceEntertainment += 1;
+          gameState.advanceWeeks(1);
+          activeContest = null;
+          mockSnapshots = null;
+          whiteboardView = "dashboard";
+          pendingContestFinish = null;
+        };
+        whiteboardView = "contest";
+        requestRender();
+      },
+      onCancel: () => {
+        whiteboardView = "dashboard";
+        mockStatusMessage = null;
+        requestRender();
+      },
+      status: mockStatusMessage
+    });
+
+    row.appendChild(modal);
+    root.appendChild(row);
+    return root;
+  }
+
+  if (whiteboardView === "camp") {
+    const row = document.createElement("div");
+    row.className = "row";
+    row.style.justifyContent = "center";
+    row.style.alignItems = "center";
+    row.style.paddingTop = "20px";
+    row.style.paddingBottom = "20px";
+    row.style.minHeight = "70vh";
+
+    const participants = Array.from(campSelectedStudents);
+    const costPreview = gameState.computeCampCost(
+      campDifficulty,
+      campProvinceId || gameState.provinceId,
+      participants.length,
+      campSelectedTalents.size
+    );
+
+    const modal = createCampModal({
+      gameState,
+      difficulty: campDifficulty,
+      provinceId: campProvinceId || gameState.provinceId,
+      selectedStudents: campSelectedStudents,
+      selectedTalents: campSelectedTalents,
+      stage: campStep,
+      costPreview,
+      onSelectDifficulty: (diff) => {
+        campDifficulty = diff;
+        campStatusMessage = null;
+        requestRender();
+      },
+      onSelectProvince: (id) => {
+        campProvinceId = id;
+        campStatusMessage = null;
+        requestRender();
+      },
+      onToggleStudent: (name) => {
+        if (campSelectedStudents.has(name)) campSelectedStudents.delete(name);
+        else campSelectedStudents.add(name);
+        requestRender();
+      },
+      onToggleTalent: (name) => {
+        if (campSelectedTalents.has(name)) campSelectedTalents.delete(name);
+        else campSelectedTalents.add(name);
+        requestRender();
+      },
+      onNextStage: () => {
+        campStep = 2;
+        requestRender();
+      },
+      onPrevStage: () => {
+        campStep = 1;
+        requestRender();
+      },
+      onConfirm: () => {
+        const actionWeek = gameState.week;
+        const result = gameState.performCamp({
+          difficulty: campDifficulty,
+          provinceId: campProvinceId || gameState.provinceId,
+          studentNames: Array.from(campSelectedStudents),
+          inspireTalents: Array.from(campSelectedTalents)
+        });
+        if (!result.success) {
+          campStatusMessage = result.error;
+          requestRender();
+          return;
+        }
+        pushLog(
+          `第 ${actionWeek} 周：外出集训-${result.provinceName} 难度${result.difficulty}，费用 ${formatCurrency(
+            result.cost
+          )}`
+        );
+        result.gains?.forEach((g) => {
+          const kn = Object.entries(g.knowledge)
+            .map(([k, v]) => `${k}+${v.toFixed(1)}`)
+            .join(" ");
+          pushLog(`  ${g.name}: 思维+${g.thinking.toFixed(1)} 代码+${g.coding.toFixed(1)} ${kn}`);
+        });
+        result.talentGains
+          ?.filter((tg) => tg.talents.length > 0)
+          .forEach((tg) => {
+            const talents = tg.talents.join("、");
+            pushLog(`  ${tg.name}: 获得天赋 ${talents}`);
+          });
+        campStatusMessage = null;
+        whiteboardView = "dashboard";
+        campStep = 1;
+        requestRender();
+      },
+      onCancel: () => {
+        whiteboardView = "dashboard";
+        campStatusMessage = null;
+        campStep = 1;
+        requestRender();
+      },
+      status: campStatusMessage
     });
 
     row.appendChild(modal);

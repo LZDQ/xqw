@@ -27,6 +27,16 @@ function buildButton(
   btn.style.color = "#fff";
   btn.style.background = color;
   btn.style.boxShadow = "0 6px 18px rgba(0,0,0,0.16)";
+  btn.style.padding = "0";
+  btn.style.lineHeight = "1";
+  btn.style.display = "flex";
+  btn.style.alignItems = "center";
+  btn.style.justifyContent = "center";
+  btn.style.boxSizing = "border-box";
+  btn.style.setProperty("appearance", "none");
+  btn.style.setProperty("-webkit-appearance", "none");
+  btn.style.setProperty("-moz-appearance", "none");
+  btn.style.outline = "none";
   btn.onclick = opts.onClick;
   return btn;
 }
