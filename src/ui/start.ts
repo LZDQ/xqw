@@ -143,7 +143,7 @@ export async function showStartHUD(parent: HTMLElement): Promise<GameState> {
         <h2>OI 教练模拟器</h2>
         <h3 class="oi-start-subtitle">信息学教练 3D 教室</h3>
         <p class="mask-lead">
-          高二 NOIP 被创飞，你醒来成为学校竞赛总教练。复制原版 HUD 玩法，先在白板上把训练计划排好吧。
+          高二 NOIP 被创飞，你醒来成为学校竞赛总教练。进入游戏后点击白板右侧进行操作。
         </p>
         <div class="mask-actions">
           <button id="oiMaskSkipBtn" class="btn btn-skip">进入游戏</button>
@@ -229,7 +229,7 @@ export async function showStartHUD(parent: HTMLElement): Promise<GameState> {
   });
 
   helpBtn.addEventListener("click", () => {
-    window.open("/base-game/help.html", "_blank", "noopener");
+    window.open("/help.html", "_blank", "noopener");
   });
 
   let started = false;
