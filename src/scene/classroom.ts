@@ -13,20 +13,22 @@ export const BOARD_SIZE = { width: 11.2, height: 6.0 };
 const MODEL_BASE = "/assets/models/";
 const FALLBACK_TEXTURE = "/assets/textures/WOOD 1_0.jpeg";
 const FLAME_TEXTURE = "/assets/textures/Flame_(texture)_JE1_BE1.png";
-type AssetKey = "desk" | "chair" | "player" | "ceiling" | "airConditioner";
+type AssetKey = "desk" | "chair" | "player" | "ceiling" | "airConditioner" | "classroomWall";
 const MODEL_SCALE: Record<AssetKey, number> = {
   desk: 0.4,        // doubled to restore 2x sizing
   chair: 0.01,
   player: 1.0,
   ceiling: 1.0,
   airConditioner: 1.0,
+  classroomWall: 1.0,
 };
 const ASSETS_TO_LOAD: Array<[AssetKey, string]> = [
   ["desk", "desk.glb"],
   ["chair", "chair.glb"],
   ["player", "nairong.glb"],
   ["ceiling", "ceiling.glb"],
-  ["airConditioner", "air_conditioner.glb"]
+  ["airConditioner", "air_conditioner.glb"],
+  ["classroomWall", "classroom_wall.glb"]
 ];
 let prefetchPromise: Promise<void> | null = null;
 const PRESSURE_MIX_MID = 0.40;
@@ -45,6 +47,7 @@ const CHAIR_COLLIDER_OFFSET = { x: 0, z: 0.7 };
 let pressureTintColor: THREEType.Color | null = null;
 let pressureWorkingColor: THREEType.Color | null = null;
 let flameTexture: THREEType.Texture | null = null;
+const FRONT_WALL_BACK_OFFSET = 0.02; // push decorative wall slightly behind the board
 
 interface Seat {
   seatId: number;
@@ -253,6 +256,9 @@ function loadClassroomAssets(
     if (assets.ceiling) {
       placeCeiling(THREE, scene, assets.ceiling, ceilingPlaceholder);
     }
+    if (assets.classroomWall) {
+      placeClassroomWall(THREE, scene, assets.classroomWall);
+    }
     if (assets.airConditioner) {
       airConditioner?.setModel(cloneAsset(assets.airConditioner));
     }
@@ -322,6 +328,93 @@ function placeCeiling(
   ceiling.updateMatrixWorld(true);
   placeholder?.removeFromParent();
   scene.add(ceiling);
+}
+
+function placeClassroomWall(
+  THREE: typeof THREEType,
+  scene: THREEType.Scene,
+  wallAsset: THREEType.Object3D,
+): void {
+  const base = cloneAsset(wallAsset);
+  // Render from inside the room and disable frustum culling for safety.
+  base.traverse((child) => {
+    child.frustumCulled = false;
+    const mesh = child as THREEType.Mesh;
+    if (mesh?.isMesh && mesh.material) {
+      const mat = mesh.material as THREEType.Material & { side?: number };
+      if ("side" in mat) mat.side = THREE.DoubleSide;
+    }
+  });
+
+  // Normalize baked offsets so scaling/placement use origin as reference.
+  base.updateMatrixWorld(true);
+  const initialBox = new THREE.Box3().setFromObject(base);
+  const initialCenter = initialBox.getCenter(new THREE.Vector3());
+  base.position.sub(initialCenter);
+  base.updateMatrixWorld(true);
+
+  // Align long side to room width if the model was authored along Z.
+  const orientBox = new THREE.Box3().setFromObject(base);
+  const orientSize = orientBox.getSize(new THREE.Vector3());
+  const longAlongZ = orientSize.z > orientSize.x;
+  base.rotation.y = longAlongZ ? Math.PI / 2 : 0;
+  base.updateMatrixWorld(true);
+
+  const zPos = ROOM.depth / 2 - FRONT_WALL_BACK_OFFSET;
+  const xPos = ROOM.width / 2 - FRONT_WALL_BACK_OFFSET;
+
+  const placeStrip = (
+    targetWidth: number,
+    targetHeight: number,
+    center: THREEType.Vector3,
+    direction: "x" | "z",
+    segments = 4
+  ) => {
+    const segmentWidth = targetWidth / segments;
+    for (let i = 0; i < segments; i++) {
+      const inst = cloneAsset(base);
+      if (direction === "z") {
+        inst.rotation.y += Math.PI / 2; // rotate to span along Z for side walls
+      }
+      inst.updateMatrixWorld(true);
+
+      const box = new THREE.Box3().setFromObject(inst);
+      const size = box.getSize(new THREE.Vector3());
+      const widthAxis = direction === "x" ? size.x : size.z;
+      const scaleWidth = segmentWidth / Math.max(widthAxis, 1e-3);
+      const scaleHeight = targetHeight / Math.max(size.y, 1e-3);
+      const scaleVec = new THREE.Vector3(scaleWidth, scaleHeight, scaleWidth);
+      inst.scale.multiply(scaleVec);
+      inst.updateMatrixWorld(true);
+
+      const boxScaled = new THREE.Box3().setFromObject(inst);
+      const sizeScaled = boxScaled.getSize(new THREE.Vector3());
+      const centerScaled = boxScaled.getCenter(new THREE.Vector3());
+      inst.position.sub(centerScaled);
+      inst.position.y += sizeScaled.y / 2; // bottom at y=0
+
+      if (direction === "x") {
+        const tileCenterX = center.x - targetWidth / 2 + segmentWidth / 2 + i * segmentWidth;
+        inst.position.x += tileCenterX;
+        inst.position.z = center.z;
+      } else {
+        const tileCenterZ = center.z - targetWidth / 2 + segmentWidth / 2 + i * segmentWidth;
+        inst.position.z += tileCenterZ;
+        inst.position.x = center.x;
+      }
+
+      inst.updateMatrixWorld(true);
+      scene.add(inst);
+    }
+  };
+
+  // Front and back walls (whiteboard side and opposite).
+  placeStrip(ROOM.width, ROOM.height, new THREE.Vector3(0, 0, zPos), "x", 4);
+  placeStrip(ROOM.width, ROOM.height, new THREE.Vector3(0, 0, -zPos), "x", 4);
+
+  // Left and right walls.
+  placeStrip(ROOM.depth, ROOM.height, new THREE.Vector3(-xPos, 0, 0), "z", 6);
+  placeStrip(ROOM.depth, ROOM.height, new THREE.Vector3(xPos, 0, 0), "z", 6);
 }
 
 function renderSeat(
