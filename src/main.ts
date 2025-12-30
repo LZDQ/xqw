@@ -51,7 +51,7 @@ function startScene(app: HTMLElement, gameState: GameState): void {
   renderer.domElement.style.zIndex = "0";
   app.appendChild(renderer.domElement);
 
-  const camera = new THREE.PerspectiveCamera(30, window.innerWidth / window.innerHeight, 0.1, 50);
+  const camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 0.1, 50);
   camera.position.set(0, 1.6, 4);
 
   const pickTargets: THREE.Object3D[] = [];
@@ -63,6 +63,7 @@ function startScene(app: HTMLElement, gameState: GameState): void {
     ready,
     whiteboard,
     airConditioner,
+    colliders,
   } = initClassroom(THREE, gameState);
   const studentLabel = new StudentLabel(THREE, cssScene, camera, gameState);
   gameState.scene = scene;
@@ -71,7 +72,7 @@ function startScene(app: HTMLElement, gameState: GameState): void {
   pickTargets.push(whiteboard.mesh);
 
   const clock = new THREE.Clock();
-  const input = new InputController(camera, renderer.domElement);
+  const input = new InputController(camera, renderer.domElement, colliders);
   const exitGame = (): void => {
     gameState.gameEnded = true;
     gameState.gameEndReason = "辞职";

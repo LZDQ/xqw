@@ -39,6 +39,9 @@ const PRESSURE_EMIT_BASE_DROP = 0.35;       // how far below the reference point
 const PRESSURE_EMIT_VERTICAL_JITTER = 0.08; // small up/down variance at spawn
 const PRESSURE_EMIT_HORIZONTAL_JITTER = 0.28;
 const PRESSURE_EMIT_HORIZONTAL_SPEED = 1.2; // lateral drift speed
+const DESK_COLLIDER_HALF_SIZE = { x: 0.8, z: 0.55 };
+const CHAIR_COLLIDER_HALF_SIZE = { x: 0.45, z: 0.45 };
+const CHAIR_COLLIDER_OFFSET = { x: 0, z: 0.7 };
 let pressureTintColor: THREEType.Color | null = null;
 let pressureWorkingColor: THREEType.Color | null = null;
 let flameTexture: THREEType.Texture | null = null;
@@ -49,12 +52,20 @@ interface Seat {
   z: number;
 }
 
+export interface Collider {
+  x: number;
+  z: number;
+  halfSizeX: number;
+  halfSizeZ: number;
+}
+
 export interface ClassroomInitResult {
   scene: THREEType.Scene;
   cssScene: THREEType.Scene;
   ready: Promise<void>;
   whiteboard: Whiteboard;
   airConditioner: AirConditioner;
+  colliders: Collider[];
 }
 
 export function prefetchClassroomAssets(THREE: typeof THREEType): Promise<void> {
@@ -119,8 +130,9 @@ export function initClassroom(THREE: typeof THREEType, gameState: GameState): Cl
   const playerMeshes: THREEType.Object3D[] = [];
   scene.userData.playerMeshes = playerMeshes;
   const seatLayout = buildSeatLayout();
+  const colliders = buildSeatColliders(seatLayout);
   const whiteboard = new Whiteboard(BOARD_SIZE.width, BOARD_SIZE.height);
-  const boardPos = new THREE.Vector3(0, 4.0, -ROOM.depth / 2 + 1e-3);
+  const boardPos = new THREE.Vector3(0, 4.2, -ROOM.depth / 2 + 1e-3);
   whiteboard.addToScene(scene, cssScene, boardPos, 0);
   scene.userData.whiteboard = whiteboard;
 
@@ -147,7 +159,7 @@ export function initClassroom(THREE: typeof THREEType, gameState: GameState): Cl
     airConditioner
   );
 
-  return { scene, cssScene, ready, whiteboard: whiteboard, airConditioner };
+  return { scene, cssScene, ready, whiteboard: whiteboard, airConditioner, colliders };
 }
 
 function makeWall(
@@ -181,6 +193,25 @@ function buildSeatLayout(): Seat[] {
     }
   }
   return seats;
+}
+
+function buildSeatColliders(seats: Seat[]): Collider[] {
+  const colliders: Collider[] = [];
+  seats.forEach((seat) => {
+    colliders.push({
+      x: seat.x,
+      z: seat.z,
+      halfSizeX: DESK_COLLIDER_HALF_SIZE.x,
+      halfSizeZ: DESK_COLLIDER_HALF_SIZE.z,
+    });
+    colliders.push({
+      x: seat.x + CHAIR_COLLIDER_OFFSET.x,
+      z: seat.z + CHAIR_COLLIDER_OFFSET.z,
+      halfSizeX: CHAIR_COLLIDER_HALF_SIZE.x,
+      halfSizeZ: CHAIR_COLLIDER_HALF_SIZE.z,
+    });
+  });
+  return colliders;
 }
 
 function loadClassroomAssets(
