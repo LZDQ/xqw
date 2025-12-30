@@ -105,7 +105,7 @@ function renderTaskCard(
   });
   card.appendChild(tags);
 
-  card.onclick = () => onSelect(task.id);
+  card.onclick = () => onSelect(task.name);
   return card;
 }
 
@@ -150,7 +150,7 @@ export function createTrainModal({
   const grid = document.createElement("div");
   grid.className = "train-grid";
   tasks.forEach((task) => {
-    grid.appendChild(renderTaskCard(task, task.id === selectedTaskId, onSelect));
+    grid.appendChild(renderTaskCard(task, task.name === selectedTaskId, onSelect));
   });
   panel.appendChild(grid);
 
@@ -245,7 +245,7 @@ export function createTrainModal({
   const intensityCopy = ["轻度训练", "中度训练", "重度训练"];
 
   const statusClass = (): string => {
-    const task = tasks.find((t) => t.id === selectedTaskId);
+    const task = tasks.find((t) => t.name === selectedTaskId);
     if (!task) return "status-badge ok";
     const level = estimatePressure(gameState, task, currentIntensity);
     if (level === "risk") return "status-badge risk";

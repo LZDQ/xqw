@@ -434,7 +434,7 @@ function createActionCards(gameState: GameState, appendLog: (msg: string) => voi
       whiteboardView = "train";
       trainStatusMessage = null;
       const tasks = gameState.weeklyTrainingTasks.length ? gameState.weeklyTrainingTasks : gameState.getTrainingTasks(6);
-      trainSelection = tasks[0]?.id ?? null;
+      trainSelection = tasks[0]?.name ?? null;
       return;
     }
     if (action === "RELAX") {
@@ -524,7 +524,7 @@ export function createWhiteboardUI(gameState: GameState): HTMLElement {
       gameState.weeklyTrainingTasks.length > 0
         ? gameState.weeklyTrainingTasks
         : gameState.getTrainingTasks(6);
-    const selectedId = trainSelection ?? tasks[0]?.id ?? "";
+    const selectedId = trainSelection ?? tasks[0]?.name ?? "";
 
     const onSelect = (taskId: string): void => {
       trainSelection = taskId;

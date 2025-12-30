@@ -931,7 +931,7 @@ export class GameState {
   }
 
   performTraining(taskId: string, intensity: number): PerformTrainingResult | { success: false; error: string } {
-    const task = this.weeklyTrainingTasks.find((t) => t.id === taskId) ?? this.weeklyTrainingTasks[0];
+    const task = this.weeklyTrainingTasks.find((t) => t.name === taskId) ?? this.weeklyTrainingTasks[0];
     if (!task) return { success: false, error: "没有可用的训练题目" };
     const clampedIntensity = clamp(Math.round(intensity), 1, 3);
 
