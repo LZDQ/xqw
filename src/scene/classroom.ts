@@ -13,18 +13,20 @@ export const BOARD_SIZE = { width: 11.2, height: 6.0 };
 const MODEL_BASE = "/assets/models/";
 const FALLBACK_TEXTURE = "/assets/textures/WOOD 1_0.jpeg";
 const FLAME_TEXTURE = "/assets/textures/Flame_(texture)_JE1_BE1.png";
-type AssetKey = "desk" | "chair" | "player" | "ceiling";
+type AssetKey = "desk" | "chair" | "player" | "ceiling" | "airConditioner";
 const MODEL_SCALE: Record<AssetKey, number> = {
   desk: 0.4,        // doubled to restore 2x sizing
   chair: 0.01,
   player: 1.0,
   ceiling: 1.0,
+  airConditioner: 1.0,
 };
 const ASSETS_TO_LOAD: Array<[AssetKey, string]> = [
   ["desk", "desk.glb"],
   ["chair", "chair.glb"],
   ["player", "nairong.glb"],
-  ["ceiling", "ceiling.glb"]
+  ["ceiling", "ceiling.glb"],
+  ["airConditioner", "air_conditioner.glb"]
 ];
 let prefetchPromise: Promise<void> | null = null;
 const PRESSURE_MIX_MID = 0.40;
@@ -126,6 +128,7 @@ export function initClassroom(THREE: typeof THREEType, gameState: GameState): Cl
     scene,
     position: new THREE.Vector3(-ROOM.width / 2 + 0.25, ROOM.height - 3.5, -ROOM.depth / 2 + 5.0),
     modelUrl: "/assets/models/air_conditioner.glb",
+    autoLoadModel: false,
     initialTemperature: 24,
     initiallyOn: true,
   });
@@ -134,7 +137,15 @@ export function initClassroom(THREE: typeof THREEType, gameState: GameState): Cl
   acGroup.scale.setScalar(0.4);    // user-adjusted size
   scene.userData.airConditioner = airConditioner;
 
-  const ready = loadClassroomAssets(THREE, scene, seatLayout, playerMeshes, gameState.students, ceilingPlaceholder);
+  const ready = loadClassroomAssets(
+    THREE,
+    scene,
+    seatLayout,
+    playerMeshes,
+    gameState.students,
+    ceilingPlaceholder,
+    airConditioner
+  );
 
   return { scene, cssScene, ready, whiteboard: whiteboard, airConditioner };
 }
@@ -179,6 +190,7 @@ function loadClassroomAssets(
   playerMeshes: THREEType.Object3D[],
   students: Student[],
   ceilingPlaceholder?: THREEType.Object3D,
+  airConditioner?: AirConditioner,
 ): Promise<void> {
   const manager = new THREE.LoadingManager();
   const loader = new GLTFLoader(manager);
@@ -209,6 +221,9 @@ function loadClassroomAssets(
     });
     if (assets.ceiling) {
       placeCeiling(THREE, scene, assets.ceiling, ceilingPlaceholder);
+    }
+    if (assets.airConditioner) {
+      airConditioner?.setModel(cloneAsset(assets.airConditioner));
     }
     const studentBySeat = new Map<number, Student>();
     students.forEach((student) => {

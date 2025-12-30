@@ -5,6 +5,8 @@ export interface AirConditionerOptions {
   scene: THREE.Scene;
   position?: THREE.Vector3;
   modelUrl?: string;
+  prefab?: THREE.Object3D;
+  autoLoadModel?: boolean;
   particleTextureUrl?: string;
   initialTemperature?: number;
   initiallyOn?: boolean;
@@ -23,6 +25,8 @@ interface ParticleState {
  */
 export class AirConditioner {
   private group: THREE.Group;
+  private placeholder?: THREE.Object3D;
+  private model?: THREE.Object3D;
   private airflowGroup: THREE.Points;
   private particleGeo: THREE.BufferGeometry;
   private particleMat: THREE.PointsMaterial;
@@ -40,6 +44,8 @@ export class AirConditioner {
       scene,
       position = new THREE.Vector3(0, 3.4, -4.6),
       modelUrl = "/assets/models/air_conditioner.glb",
+      prefab,
+      autoLoadModel = true,
       particleTextureUrl,
       initialTemperature = 24,
       initiallyOn = true,
@@ -103,7 +109,14 @@ export class AirConditioner {
       velocity: new THREE.Vector3(),
     }));
 
-    this.loadModel(modelUrl);
+    if (prefab) {
+      this.setModel(prefab);
+    } else if (autoLoadModel) {
+      this.loadModel(modelUrl);
+    } else {
+      this.placeholder = this.makePlaceholder();
+      this.group.add(this.placeholder);
+    }
   }
 
   getGroup(): THREE.Group {
@@ -152,9 +165,28 @@ export class AirConditioner {
   dispose(): void {
     this.clearFlowParticles();
     this.group.removeFromParent();
+    this.model?.removeFromParent();
+    this.placeholder?.removeFromParent();
     this.particleGeo.dispose();
     this.particleMat.dispose();
     this.particleMat.map?.dispose();
+  }
+
+  setModel(model: THREE.Object3D): void {
+    if (!model) return;
+    this.model?.removeFromParent();
+    this.placeholder?.removeFromParent();
+    this.placeholder = undefined;
+    this.model = model;
+    model.traverse((child) => {
+      const mesh = child as THREE.Mesh;
+      if (mesh.isMesh) {
+        mesh.castShadow = false;
+        mesh.receiveShadow = false;
+      }
+    });
+    model.position.set(0, 0, 0);
+    this.group.add(model);
   }
 
   private loadModel(url: string): void {
@@ -163,27 +195,24 @@ export class AirConditioner {
       url,
       (gltf) => {
         const model = gltf.scene;
-        model.traverse((child) => {
-          const mesh = child as THREE.Mesh;
-          if (mesh.isMesh) {
-            mesh.castShadow = false;
-            mesh.receiveShadow = false;
-          }
-        });
-        model.position.set(0, 0, 0);
         model.scale.setScalar(1);
-        this.group.add(model);
+        this.setModel(model);
       },
       undefined,
       () => {
-        const placeholder = new THREE.Mesh(
-          new THREE.BoxGeometry(1.2, 0.4, 0.35),
-          new THREE.MeshStandardMaterial({ color: 0xdce3ec, roughness: 0.6, metalness: 0.05 })
-        );
-        placeholder.position.set(0, 0, 0);
-        this.group.add(placeholder);
+        this.placeholder = this.makePlaceholder();
+        this.group.add(this.placeholder);
       }
     );
+  }
+
+  private makePlaceholder(): THREE.Mesh {
+    const placeholder = new THREE.Mesh(
+      new THREE.BoxGeometry(1.2, 0.4, 0.35),
+      new THREE.MeshStandardMaterial({ color: 0xdce3ec, roughness: 0.6, metalness: 0.05 })
+    );
+    placeholder.position.set(0, 0, 0);
+    return placeholder;
   }
 
   private loadFlowTexture(url?: string): THREE.Texture {
@@ -288,4 +317,3 @@ export class AirConditioner {
     return -1;
   }
 }
-
