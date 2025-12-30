@@ -13,17 +13,18 @@ export const BOARD_SIZE = { width: 11.2, height: 6.0 };
 const MODEL_BASE = "/assets/models/";
 const FALLBACK_TEXTURE = "/assets/textures/WOOD 1_0.jpeg";
 const FLAME_TEXTURE = "/assets/textures/Flame_(texture)_JE1_BE1.png";
+type AssetKey = "desk" | "chair" | "player" | "ceiling";
 const MODEL_SCALE: Record<AssetKey, number> = {
   desk: 0.4,        // doubled to restore 2x sizing
   chair: 0.01,
-  player: 1.0
+  player: 1.0,
+  ceiling: 1.0,
 };
-
-type AssetKey = "desk" | "chair" | "player";
 const ASSETS_TO_LOAD: Array<[AssetKey, string]> = [
   ["desk", "desk.glb"],
   ["chair", "chair.glb"],
-  ["player", "nairong.glb"]
+  ["player", "nairong.glb"],
+  ["ceiling", "ceiling.glb"]
 ];
 let prefetchPromise: Promise<void> | null = null;
 const PRESSURE_MIX_MID = 0.40;
@@ -95,13 +96,13 @@ export function initClassroom(THREE: typeof THREEType, gameState: GameState): Cl
   walls.push(makeWall(THREE, ROOM.depth, ROOM.height, 0, -ROOM.width / 2, Math.PI / 2));
   walls.forEach(w => { w.material = wallMat; scene.add(w); });
 
-  const ceiling = new THREE.Mesh(
+  const ceilingPlaceholder = new THREE.Mesh(
     new THREE.PlaneGeometry(ROOM.width, ROOM.depth),
     wallMat
   );
-  ceiling.rotation.x = Math.PI / 2; // horizontal, facing downward
-  ceiling.position.set(0, ROOM.height, 0);
-  scene.add(ceiling);
+  ceilingPlaceholder.rotation.x = Math.PI / 2; // horizontal, facing downward
+  ceilingPlaceholder.position.set(0, ROOM.height, 0);
+  scene.add(ceilingPlaceholder);
 
   scene.add(new THREE.AmbientLight(0xffffff, 0.6));
   const keyLight = new THREE.DirectionalLight(0xffffff, 0.9);
@@ -133,7 +134,7 @@ export function initClassroom(THREE: typeof THREEType, gameState: GameState): Cl
   acGroup.scale.setScalar(0.4);    // user-adjusted size
   scene.userData.airConditioner = airConditioner;
 
-  const ready = loadClassroomAssets(THREE, scene, seatLayout, playerMeshes, gameState.students);
+  const ready = loadClassroomAssets(THREE, scene, seatLayout, playerMeshes, gameState.students, ceilingPlaceholder);
 
   return { scene, cssScene, ready, whiteboard: whiteboard, airConditioner };
 }
@@ -177,6 +178,7 @@ function loadClassroomAssets(
   seats: Seat[],
   playerMeshes: THREEType.Object3D[],
   students: Student[],
+  ceilingPlaceholder?: THREEType.Object3D,
 ): Promise<void> {
   const manager = new THREE.LoadingManager();
   const loader = new GLTFLoader(manager);
@@ -205,6 +207,9 @@ function loadClassroomAssets(
       const prepared = prepareAsset(THREE, entry.gltf.scene, MODEL_SCALE[entry.key]);
       assets[entry.key] = prepared;
     });
+    if (assets.ceiling) {
+      placeCeiling(THREE, scene, assets.ceiling, ceilingPlaceholder);
+    }
     const studentBySeat = new Map<number, Student>();
     students.forEach((student) => {
       if (student.seatId) {
@@ -245,6 +250,32 @@ function prepareAsset(THREE: typeof THREEType, scene: THREEType.Object3D, scale 
 
 function cloneAsset(scene: THREEType.Object3D): THREEType.Object3D{
   return cloneSkinned(scene);
+}
+
+function placeCeiling(
+  THREE: typeof THREEType,
+  scene: THREEType.Scene,
+  ceilingAsset: THREEType.Object3D,
+  placeholder?: THREEType.Object3D,
+): void {
+  const ceiling = cloneAsset(ceilingAsset);
+  ceiling.updateMatrixWorld(true);
+  const box = new THREE.Box3().setFromObject(ceiling);
+  const size = box.getSize(new THREE.Vector3());
+  const safeWidth = Math.max(size.x, 1e-3);
+  const safeDepth = Math.max(size.y, 1e-3);
+  const scaleX = ROOM.width / safeWidth;
+  const scaleY = ROOM.depth / safeDepth;
+  ceiling.scale.set(
+    ceiling.scale.x * scaleX,
+    ceiling.scale.y * scaleY,
+    ceiling.scale.z
+  );
+  ceiling.rotation.x = Math.PI / 2; // horizontal, facing downward
+  ceiling.position.set(0, ROOM.height, 0);
+  ceiling.updateMatrixWorld(true);
+  placeholder?.removeFromParent();
+  scene.add(ceiling);
 }
 
 function renderSeat(
