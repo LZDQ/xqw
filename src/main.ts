@@ -5,7 +5,7 @@ import { initDebugHUD } from "./ui/debugHud.ts";
 import { initSettingsHUD, isSettingsOpen } from "./ui/settings.ts";
 import { consumeRenderRequest, getWhiteboardView, type WhiteboardView } from "./ui/whiteboard.tsx";
 import { showStartHUD } from "./ui/start.ts";
-import { initClassroom, prefetchClassroomAssets } from "./scene/classroom.ts";
+import { initClassroom, prefetchClassroomAssets, updatePressureEmitters, updateStudentPressureTint } from "./scene/classroom.ts";
 import { CSS3DRenderer } from "three/examples/jsm/renderers/CSS3DRenderer.js";
 import { StudentLabel } from "./scene/studentLabel.ts";
 import {
@@ -65,6 +65,7 @@ function startScene(app: HTMLElement, gameState: GameState): void {
   } = initClassroom(THREE, gameState);
   const studentLabel = new StudentLabel(THREE, cssScene, camera, gameState);
   gameState.scene = scene;
+  const playerMeshes = (scene.userData.playerMeshes as THREE.Object3D[]) ?? [];
   scene.add(camera);
   pickTargets.push(whiteboard.mesh);
 
@@ -128,6 +129,8 @@ function startScene(app: HTMLElement, gameState: GameState): void {
     const studentHit = currentHit && currentHit.kind === "student" ? { target: currentHit.target } : null;
     studentLabel.setTarget(studentHit);
     studentLabel.tick();
+    updatePressureEmitters(THREE, playerMeshes, delta);
+    updateStudentPressureTint(THREE, playerMeshes);
     if (getWhiteboardView() !== previousWhiteboardView || consumeRenderRequest()) {
       whiteboard.render(gameState);
       previousWhiteboardView = getWhiteboardView();

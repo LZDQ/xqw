@@ -5,12 +5,14 @@ import type { GameState } from "../core/GameState.ts";
 import type { Student } from "../core/Student.ts";
 import { Whiteboard } from "./Whiteboard.ts";
 import { AirConditioner } from "../objects/AirConditioner.ts";
+import { PRESSURE_THRESHOLD_HIGH, PRESSURE_THRESHOLD_MID } from "../lib/constants.ts";
 
 export const ROOM = { width: 14, depth: 20, height: 7.875 }; // height * 1.75
 export const BOARD_SIZE = { width: 11.2, height: 6.0 };
 // Use root-relative paths so dev server/static builds serve public assets correctly.
 const MODEL_BASE = "/assets/models/";
 const FALLBACK_TEXTURE = "/assets/textures/WOOD 1_0.jpeg";
+const FLAME_TEXTURE = "/assets/textures/Flame_(texture)_JE1_BE1.png";
 const MODEL_SCALE: Record<AssetKey, number> = {
   desk: 0.4,        // doubled to restore 2x sizing
   chair: 0.01,
@@ -24,6 +26,19 @@ const ASSETS_TO_LOAD: Array<[AssetKey, string]> = [
   ["player", "nairong.glb"]
 ];
 let prefetchPromise: Promise<void> | null = null;
+const PRESSURE_MIX_MID = 0.40;
+const PRESSURE_MIX_HIGH = 0.85;
+const PRESSURE_MIX_MAX = 0.99;
+const PRESSURE_EMIT_RATE_MID = 4.5;
+const PRESSURE_EMIT_RATE_HIGH = 10.0;
+const PRESSURE_EMIT_HEIGHT_RATIO = 0.65;    // relative portion of student height to emit around
+const PRESSURE_EMIT_BASE_DROP = 0.35;       // how far below the reference point to spawn flames
+const PRESSURE_EMIT_VERTICAL_JITTER = 0.08; // small up/down variance at spawn
+const PRESSURE_EMIT_HORIZONTAL_JITTER = 0.28;
+const PRESSURE_EMIT_HORIZONTAL_SPEED = 1.2; // lateral drift speed
+let pressureTintColor: THREEType.Color | null = null;
+let pressureWorkingColor: THREEType.Color | null = null;
+let flameTexture: THREEType.Texture | null = null;
 
 interface Seat {
   seatId: number;
@@ -176,6 +191,12 @@ function loadClassroomAssets(
   );
 
   const seatTexture = new THREE.TextureLoader(manager).load(FALLBACK_TEXTURE);
+  flameTexture = new THREE.TextureLoader(manager).load(FLAME_TEXTURE);
+  if (flameTexture) {
+    flameTexture.colorSpace = THREE.SRGBColorSpace;
+    flameTexture.wrapS = flameTexture.wrapT = THREE.ClampToEdgeWrapping;
+    flameTexture.needsUpdate = true;
+  }
 
   const assetsReady = Promise.all(loadPromises).then(results => {
     const assets: Partial<Record<AssetKey, THREEType.Object3D>> = {};
@@ -265,6 +286,7 @@ function renderSeat(
     const labelOffset = size.y + 0.15;
     player.userData.labelOffset = labelOffset;
     player.traverse(child => { child.userData.labelOffset = labelOffset; });
+    attachPressureEmitter(player, size.y);
     root.add(player);
     playerMeshes.push(player);
   }
@@ -306,4 +328,168 @@ function applyTextureIfMissing(
       }
     }
   });
+}
+
+export function updateStudentPressureTint(
+  THREE: typeof THREEType,
+  playerMeshes: THREEType.Object3D[],
+): void {
+  if (!pressureTintColor) pressureTintColor = new THREE.Color(0xdc2626);
+  if (!pressureWorkingColor) pressureWorkingColor = new THREE.Color();
+  playerMeshes.forEach((root) => {
+    const student = root.userData?.studentRef as Student | undefined;
+    if (!student) return;
+    const mix = pressureToTintStrength(student.pressure);
+    applyPressureTint(root, mix, pressureTintColor!, pressureWorkingColor!);
+  });
+}
+
+function pressureToTintStrength(pressure: number): number {
+  if (pressure < PRESSURE_THRESHOLD_MID) return 0;
+  const clamped = Math.min(Math.max(pressure, 0), 100);
+  if (clamped < PRESSURE_THRESHOLD_HIGH) {
+    const t = (clamped - PRESSURE_THRESHOLD_MID) / (PRESSURE_THRESHOLD_HIGH - PRESSURE_THRESHOLD_MID);
+    return lerp(PRESSURE_MIX_MID, PRESSURE_MIX_HIGH, t);
+  }
+  const t = (clamped - PRESSURE_THRESHOLD_HIGH) / (100 - PRESSURE_THRESHOLD_HIGH);
+  return lerp(PRESSURE_MIX_HIGH, PRESSURE_MIX_MAX, t);
+}
+
+function applyPressureTint(
+  root: THREEType.Object3D,
+  mix: number,
+  tintColor: THREEType.Color,
+  workingColor: THREEType.Color,
+): void {
+  const clampedMix = Math.min(Math.max(mix, 0), 1);
+  root.traverse((child) => {
+    const mesh = child as THREEType.Mesh;
+    if (!mesh.isMesh) return;
+    const materials = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
+    materials.forEach((material) => {
+      const mat = material as THREEType.Material & { color?: THREEType.Color; userData: Record<string, unknown> };
+      if (!mat?.color) return;
+      const baseKey = "__baseColor";
+      if (!mat.userData[baseKey]) {
+        mat.userData[baseKey] = mat.color.clone();
+      }
+      const baseColor = mat.userData[baseKey] as THREEType.Color;
+      workingColor.copy(baseColor).lerp(tintColor, clampedMix);
+      mat.color.copy(workingColor);
+    });
+  });
+}
+
+function lerp(a: number, b: number, t: number): number {
+  return a + (b - a) * t;
+}
+
+type PressureParticle = {
+  sprite: THREEType.Sprite;
+  velocity: THREEType.Vector3;
+  life: number;
+  maxLife: number;
+};
+
+type PressureEmitter = {
+  particles: PressureParticle[];
+  spawnAccumulator: number;
+  height: number;
+};
+
+function attachPressureEmitter(
+  root: THREEType.Object3D,
+  height: number
+): void {
+  if (root.userData.pressureEmitter) return;
+  root.userData.pressureEmitter = {
+    particles: [],
+    spawnAccumulator: 0,
+    height
+  } as PressureEmitter;
+}
+
+export function updatePressureEmitters(
+  THREE: typeof THREEType,
+  playerMeshes: THREEType.Object3D[],
+  delta: number
+): void {
+  if (!flameTexture) return;
+  playerMeshes.forEach((root) => {
+    const student = root.userData?.studentRef as Student | undefined;
+    if (!student) return;
+    const emitter = root.userData?.pressureEmitter as PressureEmitter | undefined;
+    if (!emitter) return;
+    const rate = getEmissionRate(student.pressure);
+    emitter.spawnAccumulator += rate * delta;
+    while (emitter.spawnAccumulator >= 1) {
+      spawnParticle(THREE, root, emitter);
+      emitter.spawnAccumulator -= 1;
+    }
+    updateParticles(root, emitter, delta);
+  });
+}
+
+function getEmissionRate(pressure: number): number {
+  if (pressure >= PRESSURE_THRESHOLD_HIGH) return PRESSURE_EMIT_RATE_HIGH;
+  if (pressure >= PRESSURE_THRESHOLD_MID) return PRESSURE_EMIT_RATE_MID;
+  return 0;
+}
+
+function spawnParticle(
+  THREE: typeof THREEType,
+  root: THREEType.Object3D,
+  emitter: PressureEmitter
+): void {
+  const sprite = new THREE.Sprite(new THREE.SpriteMaterial({
+    map: flameTexture ?? undefined,
+    transparent: true,
+    depthWrite: false,
+    blending: THREE.AdditiveBlending,
+    opacity: 0.0,
+  }));
+  const scale = THREE.MathUtils.randFloat(0.16, 0.24);
+  sprite.scale.setScalar(scale);
+  const jitter = PRESSURE_EMIT_HORIZONTAL_JITTER;
+  const refY = emitter.height * PRESSURE_EMIT_HEIGHT_RATIO;
+  const baseY = Math.max(0.15, refY - PRESSURE_EMIT_BASE_DROP);
+  sprite.position.set(
+    THREE.MathUtils.randFloatSpread(jitter),
+    baseY + THREE.MathUtils.randFloatSpread(PRESSURE_EMIT_VERTICAL_JITTER),
+    THREE.MathUtils.randFloatSpread(jitter)
+  );
+  const velocity = new THREE.Vector3(
+    THREE.MathUtils.randFloatSpread(PRESSURE_EMIT_HORIZONTAL_SPEED),
+    THREE.MathUtils.randFloatSpread(0.05), // keep mostly flat; avoid upward bias
+    THREE.MathUtils.randFloatSpread(PRESSURE_EMIT_HORIZONTAL_SPEED)
+  );
+  const life = THREE.MathUtils.randFloat(0.6, 1.0);
+  root.add(sprite);
+  emitter.particles.push({ sprite, velocity, life, maxLife: life });
+}
+
+function updateParticles(
+  root: THREEType.Object3D,
+  emitter: PressureEmitter,
+  delta: number
+): void {
+  for (let i = emitter.particles.length - 1; i >= 0; i--) {
+    const p = emitter.particles[i];
+    p.life -= delta;
+    if (p.life <= 0 || !p.sprite.material) {
+      root.remove(p.sprite);
+      if (p.sprite.material && "dispose" in p.sprite.material) {
+        (p.sprite.material as THREEType.Material).dispose();
+      }
+      p.sprite.geometry?.dispose?.();
+      emitter.particles.splice(i, 1);
+      continue;
+    }
+    const mat = p.sprite.material as THREEType.SpriteMaterial;
+    const t = p.life / p.maxLife;
+    mat.opacity = Math.max(0, Math.min(1, t));
+    p.sprite.position.addScaledVector(p.velocity, delta);
+    p.velocity.y += delta * 0.3;
+    mat.needsUpdate = true;
+  }
 }

@@ -2,7 +2,7 @@ import type { GameState } from "../../core/GameState.ts";
 import { KNOWLEDGE_COLORS, knowledgeLabel, type TrainingTask } from "../../data/trainingTasks.ts";
 import {
   PRESSURE_THRESHOLD_HIGH,
-  PRESSURE_THRESHOLD_MEDIUM,
+  PRESSURE_THRESHOLD_MID,
   TRAINING_PRESSURE_MULTIPLIER_HEAVY,
   TRAINING_PRESSURE_MULTIPLIER_MEDIUM,
   TRAINING_PRESSURE_MULTIPLIER_LIGHT
@@ -68,7 +68,7 @@ function estimatePressure(
   const canteenReduction = gameState.facilities.getCanteenPressureReduction();
   const preview = basePressure * weatherFactor * canteenReduction * comfortFactor;
   if (preview >= PRESSURE_THRESHOLD_HIGH) return "risk";
-  if (preview >= PRESSURE_THRESHOLD_MEDIUM) return "warn";
+  if (preview >= PRESSURE_THRESHOLD_MID) return "warn";
   return "ok";
 }
 

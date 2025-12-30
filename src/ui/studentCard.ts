@@ -7,6 +7,8 @@ import {
   COMPETITION_ORDER,
   COMPETITION_SCHEDULE,
   type Competition,
+  PRESSURE_THRESHOLD_HIGH,
+  PRESSURE_THRESHOLD_MID,
   SEASON_WEEKS
 } from "../lib/constants.ts";
 import { getLetterGradeAbility } from "../lib/grades.ts";
@@ -22,6 +24,7 @@ export interface StudentCardOptions {
   headerBadges?: HTMLElement[];
   showKnowledge?: boolean;
   showTalents?: boolean;
+  showPressure?: boolean;
 }
 
 const TALENT_LOOKUP = new Map(TALENTS.map((t) => [t.name, t]));
@@ -53,6 +56,10 @@ export function renderStudentCard(
   if (options.includeQualification) {
     const qual = getQualificationStatus(gameState, student);
     header.appendChild(createQualificationBadge(qual));
+  }
+
+  if (options.showPressure !== false) {
+    header.appendChild(createPressureBadge(student.pressure));
   }
 
   options.headerBadges?.forEach((badge) => header.appendChild(badge));
@@ -157,6 +164,21 @@ function createQualificationBadge(status: QualificationStatus): HTMLElement {
   qualEl.className = `qualification-badge ${status.qualified ? "qualified" : "not-qualified"}`;
   qualEl.textContent = status.label;
   return qualEl;
+}
+
+function createPressureBadge(pressure: number): HTMLElement {
+  const badge = document.createElement("span");
+  const { label, tone } = getPressureLevel(pressure);
+  badge.className = `pressure-badge pressure-${tone}`;
+  badge.textContent = `压力：${label}`;
+  badge.title = `压力：${Math.round(pressure)}`;
+  return badge;
+}
+
+function getPressureLevel(pressure: number): { label: "低" | "中" | "高"; tone: "low" | "mid" | "high" } {
+  if (pressure < PRESSURE_THRESHOLD_MID) return { label: "低", tone: "low" };
+  if (pressure < PRESSURE_THRESHOLD_HIGH) return { label: "中", tone: "mid" };
+  return { label: "高", tone: "high" };
 }
 
 function getWeekInSeason(week: number): number {
