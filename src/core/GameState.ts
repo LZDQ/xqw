@@ -482,6 +482,13 @@ export class GameState {
       const totalLoss = 10 * quitList.length;
       this.logMessage?.(`[退队] ${names} 因压力过大退队，声誉 -${totalLoss}`);
     }
+
+    const activeCount = this.students.filter((s) => s && s.active !== false).length;
+    if (activeCount === 0 && !this.gameEnded) {
+      this.gameEnded = true;
+      this.gameEndReason = "无学生：所有学生退队";
+      this.seasonEndTriggered = true;
+    }
   }
 
   private removeStudentVisuals(student: Student): void {

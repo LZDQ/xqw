@@ -99,6 +99,10 @@ function startScene(app: HTMLElement, gameState: GameState): void {
   function onClick(event?: MouseEvent): void {
     if ((event as any)?._whiteboardSynthetic) return;
     if (isSettingsOpen()) return;
+    if (gameState.gameEnded) {
+      input.unlock();
+      return;
+    }
     if (!input.isLocked()) {
       input.lock();
       return;
