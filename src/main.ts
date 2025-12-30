@@ -5,6 +5,7 @@ import { initDebugHUD } from "./ui/debugHud.ts";
 import { initSettingsHUD, isSettingsOpen } from "./ui/settings.ts";
 import { consumeRenderRequest, getWhiteboardView, type WhiteboardView } from "./ui/whiteboard.tsx";
 import { showStartHUD } from "./ui/start.ts";
+import { showEndOverlay } from "./ui/end.ts";
 import { initClassroom, prefetchClassroomAssets, updatePressureEmitters, updateStudentPressureTint } from "./scene/classroom.ts";
 import { CSS3DRenderer } from "three/examples/jsm/renderers/CSS3DRenderer.js";
 import { StudentLabel } from "./scene/studentLabel.ts";
@@ -74,7 +75,7 @@ function startScene(app: HTMLElement, gameState: GameState): void {
   const exitGame = (): void => {
     gameState.gameEnded = true;
     gameState.gameEndReason = "辞职";
-    window.location.reload();
+    gameState.seasonEndTriggered = true;
   };
   initSettingsHUD(app, input, camera, exitGame);
   const debugHud = initDebugHUD(app, camera);
@@ -120,6 +121,7 @@ function startScene(app: HTMLElement, gameState: GameState): void {
   onResize();
 
   let previousWhiteboardView: WhiteboardView | null = null;
+  let endOverlayShown = false;
   function animate(): void {
     requestAnimationFrame(animate);
     const delta = clock.getDelta();
@@ -131,6 +133,11 @@ function startScene(app: HTMLElement, gameState: GameState): void {
     studentLabel.tick();
     updatePressureEmitters(THREE, playerMeshes, delta);
     updateStudentPressureTint(THREE, playerMeshes);
+    if (!endOverlayShown && gameState.gameEnded) {
+      endOverlayShown = true;
+      input.unlock();
+      showEndOverlay(app, gameState);
+    }
     if (getWhiteboardView() !== previousWhiteboardView || consumeRenderRequest()) {
       whiteboard.render(gameState);
       previousWhiteboardView = getWhiteboardView();
