@@ -134,6 +134,7 @@ export class StudentLabel {
       knowledgeVals,
       talents,
       qual.label,
+      student.quit_tendency_weeks ?? 0
     ].join("::");
   }
 }

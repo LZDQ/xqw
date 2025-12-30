@@ -687,3 +687,15 @@ canvas {
   background: #fee2e2;
   border-color: #fca5a5;
 }
+
+.quit-tag {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 6px;
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 700;
+  color: #b91c1c;
+  background: #fee2e2;
+  border: 1px solid #fca5a5;
+}

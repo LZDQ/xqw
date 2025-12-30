@@ -53,6 +53,14 @@ export function renderStudentCard(
   nameEl.textContent = student.name;
   header.appendChild(nameEl);
 
+  if (student.quit_tendency_weeks > 0) {
+    const quitTag = document.createElement("span");
+    quitTag.className = "quit-tag";
+    quitTag.textContent = "退队倾向";
+    quitTag.title = "如不降低压力，下周将退队";
+    header.appendChild(quitTag);
+  }
+
   if (options.includeQualification) {
     const qual = getQualificationStatus(gameState, student);
     header.appendChild(createQualificationBadge(qual));

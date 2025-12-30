@@ -61,6 +61,7 @@ export class Student {
   burnout_weeks: number;
   depression_count: number;
   high_pressure_weeks: number;
+  quit_tendency_weeks: number;
   talentPassivesApplied: Set<string>;
   active: boolean;
   sick_weeks: number;
@@ -123,6 +124,7 @@ export class Student {
     this.burnout_weeks = 0;
     this.depression_count = 0;
     this.high_pressure_weeks = 0;
+    this.quit_tendency_weeks = 0;
     this.talentPassivesApplied = new Set();
     this.active = true;
     this.sick_weeks = 0;

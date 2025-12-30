@@ -51,7 +51,11 @@ import {
   TRAINING_PRESSURE_MULTIPLIER_LIGHT,
   TRAINING_EFFECT_MULTIPLIER,
   PRESSURE_INCREASE_MULTIPLIER,
-  ONLINE_CONTEST_TYPES
+  ONLINE_CONTEST_TYPES,
+  QUIT_PROB_BASE,
+  QUIT_PROB_PER_EXTRA_PRESSURE,
+  QUIT_PRESSURE_TRIGGER,
+  QUIT_FORCE_AFTER_WEEKS
 } from "../lib/constants.ts";
 import {
   PROVINCES,
@@ -189,6 +193,7 @@ export interface PerformTrainingResult {
 export class GameState {
   students: Student[] = [];
   facilities: Facilities = new Facilities();
+  logMessage?: (msg: string) => void;
   budget = 100000;
   week = 1;
   reputation = 50;
@@ -415,6 +420,82 @@ export class GameState {
     const tasks = selectTrainingTasks(count, avgAbility);
     this.weeklyTrainingTasks = tasks;
     return tasks;
+  }
+
+  private handleQuitTendency(): void {
+    const quitList: Student[] = [];
+    const tendencyList: string[] = [];
+    for (let i = this.students.length - 1; i >= 0; i--) {
+      const s = this.students[i];
+      if (!s || s.active === false) continue;
+      if (s.pressure >= QUIT_PRESSURE_TRIGGER) {
+        s.quit_tendency_weeks = (s.quit_tendency_weeks ?? 0) + 1;
+        this.logMessage?.(`[警告] ${s.name} 压力 ${Math.round(s.pressure)} 产生退队倾向（持续 ${s.quit_tendency_weeks} 周）`);
+        if (s.quit_tendency_weeks > 1) {
+            if (s.quit_tendency_weeks >= QUIT_FORCE_AFTER_WEEKS) {
+              this.logMessage?.(`[退队] ${s.name} 因连续高压 ${s.quit_tendency_weeks} 周被迫退队，声誉 -10`);
+              quitList.push(s);
+              this.students.splice(i, 1);
+              s.active = false;
+              s.quit_tendency_weeks = 0;
+              s.seatId = null;
+              this.quitStudents += 1;
+              this.reputation = Math.max(0, this.reputation - 10);
+              this.removeStudentVisuals(s);
+              try { s.triggerTalents?.("quit", { reason: "burnout" }); } catch (e) {
+                console.error("quit talent trigger failed", e);
+              }
+              continue;
+            }
+          let prob = QUIT_PROB_BASE + QUIT_PROB_PER_EXTRA_PRESSURE * Math.max(0, s.pressure - QUIT_PRESSURE_TRIGGER);
+          prob += 0.2 * (s.quit_tendency_weeks - 1); // escalate each additional week
+          if (s.talents.has("乐天派")) prob *= 0.5;
+          const roll = Math.random();
+          if (roll < prob) {
+            quitList.push(s);
+            this.students.splice(i, 1);
+            s.active = false;
+            s.quit_tendency_weeks = 0;
+            s.seatId = null;
+            this.quitStudents += 1;
+            this.reputation = Math.max(0, this.reputation - 10);
+            this.removeStudentVisuals(s);
+            this.logMessage?.(`[退队] ${s.name} 因高压退队，声誉 -10`);
+            try { s.triggerTalents?.("quit", { reason: "burnout" }); } catch (e) {
+              console.error("quit talent trigger failed", e);
+            }
+            continue;
+          }
+        } else if (s.quit_tendency_weeks === 1) {
+          tendencyList.push(s.name);
+        }
+      } else if (s.quit_tendency_weeks > 0) {
+        s.quit_tendency_weeks = 0;
+      }
+    }
+
+    if (tendencyList.length > 0) {
+      this.logMessage?.(`[警告] ${tendencyList.join("、")} 压力过大产生退队倾向，如不缓解将在下周退队`);
+    }
+    if (quitList.length > 0) {
+      const names = quitList.map((s) => s.name).join("、");
+      const totalLoss = 10 * quitList.length;
+      this.logMessage?.(`[退队] ${names} 因压力过大退队，声誉 -${totalLoss}`);
+    }
+  }
+
+  private removeStudentVisuals(student: Student): void {
+    if (!this.scene) return;
+    const meshes = this.scene.userData?.playerMeshes as THREE.Object3D[] | undefined;
+    if (!meshes) return;
+    for (let i = meshes.length - 1; i >= 0; i--) {
+      const root = meshes[i];
+      const ref = root.userData?.studentRef as Student | undefined;
+      if (ref === student) {
+        root.parent?.remove(root);
+        meshes.splice(i, 1);
+      }
+    }
   }
 
   private computeCampBaseCost(
@@ -791,6 +872,7 @@ export class GameState {
   advanceWeeks(weeks = 1): void {
     for (let i = 0; i < weeks; i++) {
       this.recoverWeeklyPressure();
+      this.handleQuitTendency();
       this.week += 1;
       this.updateWeather();
     }

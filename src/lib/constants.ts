@@ -23,6 +23,7 @@ export const ABILITY_DECAY_THRESHOLD = 400;
 export const RECOVERY_RATE = 7.0;
 export const FATIGUE_FROM_PRESSURE = 180.0;
 export const ALPHA1 = 28.0;
+export const QUIT_PRESSURE_TRIGGER = 90;
 
 /* 省份基础 */
 export const STRONG_PROVINCE_BUDGET = 200000;
@@ -307,6 +308,7 @@ export const BASE_SICK_PROB = 0.025;
 export const SICK_PROB_FROM_COLD_HOT = 0.03;
 export const QUIT_PROB_BASE = 0.22;
 export const QUIT_PROB_PER_EXTRA_PRESSURE = 0.02;
+export const QUIT_FORCE_AFTER_WEEKS = 3;
 export const TALENT_LOST_VALUE = 75; // 触发丧失天赋的压力阈值
 
 /* 劝退消耗声誉 */

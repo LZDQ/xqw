@@ -494,6 +494,12 @@ function createActionCards(gameState: GameState, appendLog: (msg: string) => voi
 }
 
 export function createWhiteboardUI(gameState: GameState): HTMLElement {
+  if (!gameState.logMessage) {
+    gameState.logMessage = (msg: string): void => {
+      pushLog(msg);
+      requestRender();
+    };
+  }
   const root = document.createElement("div");
   root.id = "whiteboard-content";
   root.className = "whiteboard-ui";
