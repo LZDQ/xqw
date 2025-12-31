@@ -37,6 +37,7 @@ import {
   OUTFIT_PRESSURE_BASIC,
   OUTFIT_PRESSURE_ADVANCED,
   OUTFIT_PRESSURE_INTERMEDIATE,
+  IOI_GOLD_THRESHOLD,
   OUTFIT_REPUTATION_DISCOUNT,
   OUTFIT_REPUTATION_DISCOUNT_MULTIPLIER,
   STRONG_PROVINCE_COST_MULTIPLIER,
@@ -73,6 +74,7 @@ import {
   COMPETITION_BASE_CUTOFF,
   COMPETITION_ORDER,
   CUTOFF_FLUCTUATION,
+  COMPETITION_SCHEDULE,
   SEASON_WEEKS
 } from "../lib/constants.ts";
 import type { ContestConfig } from "./Contest.ts";
@@ -213,6 +215,10 @@ export class GameState {
   weeksSinceEntertainment = 0;
   weeksSinceGoodResult = 0;
   totalExpenses = 0;
+  noiGoldWinners: Set<string> = new Set();
+  private readonly totalSeasons = 2;
+  private readonly usesAbsoluteContestWeeks = COMPETITION_SCHEDULE.some((c) => c.week > SEASON_WEEKS);
+  private absoluteContestSchedule: Array<{ name: CompetitionName; week: number }> | null = null;
   qualification: [QualificationMap, QualificationMap];
   seasonEndTriggered = false;
   gameEnded = false;
@@ -836,6 +842,12 @@ export class GameState {
     return COMPETITION_ORDER[idx - 1] ?? null;
   }
 
+  private getNextCompetition(name: CompetitionName): CompetitionName | null {
+    const idx = COMPETITION_ORDER.indexOf(name);
+    if (idx < 0) return null;
+    return COMPETITION_ORDER[idx + 1] ?? null;
+  }
+
   private getCutoffRatio(name: CompetitionName): number {
     const provinceStrength = (this.provinceType || "NORMAL") as ProvinceStrength;
     const base = COMPETITION_BASE_CUTOFF[name]?.[provinceStrength] ?? 0.5;
@@ -874,6 +886,8 @@ export class GameState {
       }
     }
     this.qualification[seasonIdx][name] = targetSet;
+    this.recordNoiMedals(name, results);
+    this.evaluateSeasonEndAfterContest(name);
   }
 
   advanceWeeks(weeks = 1): void {
@@ -935,6 +949,94 @@ export class GameState {
     this.advanceWeeks(1);
 
     return { success: true, option, cost: charged, message: `娱乐活动完成：${option.label}` };
+  }
+
+  private getAbsoluteContestSchedule(): Array<{ name: CompetitionName; week: number }> {
+    if (this.absoluteContestSchedule) return this.absoluteContestSchedule;
+    const list: Array<{ name: CompetitionName; week: number }> = [];
+    if (this.usesAbsoluteContestWeeks) {
+      COMPETITION_SCHEDULE.forEach((c) => {
+        if (c.nationalTeam) return;
+        list.push({ name: c.name, week: c.week });
+      });
+    } else {
+      for (let season = 0; season < this.totalSeasons; season++) {
+        const offset = season * SEASON_WEEKS;
+        COMPETITION_SCHEDULE.forEach((c) => {
+          if (c.nationalTeam) return;
+          list.push({ name: c.name, week: c.week + offset });
+        });
+      }
+    }
+    this.absoluteContestSchedule = list.sort((a, b) => a.week - b.week);
+    return this.absoluteContestSchedule;
+  }
+
+  private hasContestAfterWeek(week: number): boolean {
+    return this.getAbsoluteContestSchedule().some((c) => c.week > week);
+  }
+
+  private isContestScheduled(name: CompetitionName): boolean {
+    return COMPETITION_SCHEDULE.some((c) => !c.nationalTeam && c.name === name);
+  }
+
+  private recordNoiMedals(
+    name: CompetitionName,
+    results: Array<{ student: Student; totalScore: number; maxScore: number }>
+  ): void {
+    if (name !== "NOI" || !results?.length) return;
+    const maxScore = results[0]?.maxScore ?? 0;
+    if (maxScore <= 0) return;
+    const goldLine = maxScore * IOI_GOLD_THRESHOLD;
+    results.forEach((r) => {
+      if (r.totalScore >= goldLine) {
+        this.noiGoldWinners.add(r.student.name);
+      }
+    });
+  }
+
+  private triggerChainBreak(contestName: CompetitionName): void {
+    if (this.gameEnded) return;
+    this.gameEnded = true;
+    this.gameEndReason = "晋级链断裂";
+    this.seasonEndTriggered = true;
+    this.logMessage?.(`[结束] ${contestName} 后无人晋级，晋级链断裂`);
+  }
+
+  evaluateNoEligibleForContest(contestName: CompetitionName): void {
+    if (this.gameEnded) return;
+    const seasonIdx = this.getSeasonIndexForWeek();
+    if (seasonIdx !== this.totalSeasons - 1) return;
+    const prev = this.getPreviousCompetition(contestName);
+    if (!prev) return;
+    const qualifiers = this.qualification[seasonIdx]?.[prev];
+    if (!qualifiers || qualifiers.size === 0) {
+      this.triggerChainBreak(contestName);
+    }
+  }
+
+  evaluateSeasonEndAfterContest(contestName: CompetitionName): void {
+    if (this.gameEnded) return;
+    const seasonIdx = this.getSeasonIndexForWeek();
+    const seasonIsLast = seasonIdx === this.totalSeasons - 1;
+
+    if (seasonIsLast) {
+      const nextContest = this.getNextCompetition(contestName);
+      if (nextContest && this.isContestScheduled(nextContest)) {
+        const qualifiers = this.qualification[seasonIdx]?.[contestName];
+        if (!qualifiers || qualifiers.size === 0) {
+          this.triggerChainBreak(contestName);
+          return;
+        }
+      }
+    }
+
+    if (!seasonIsLast) return;
+    if (this.hasContestAfterWeek(this.week)) return;
+
+    this.gameEnded = true;
+    this.gameEndReason = this.noiGoldWinners.size > 0 ? "NOI金牌" : "赛季结束";
+    this.seasonEndTriggered = true;
   }
 
   performTraining(taskId: string, intensity: number): PerformTrainingResult | { success: false; error: string } {

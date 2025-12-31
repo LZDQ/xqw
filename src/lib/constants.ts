@@ -38,7 +38,6 @@ export const SEASON_WEEKS = 21;
 
 /* 比赛日程 */
 export const COMPETITION_SCHEDULE: readonly Competition[] = [
-  // 第一轮：3,5,7,11,14  第二轮：17,19,21,25,28
   { week: 3, name: "CSP_S1", difficulty: 30, maxScore: 100, numProblems: 1 },
   { week: 6, name: "CSP_S2", difficulty: 60, maxScore: 400, numProblems: 4 },
   { week: 9, name: "NOIP", difficulty: 100, maxScore: 400, numProblems: 4 },

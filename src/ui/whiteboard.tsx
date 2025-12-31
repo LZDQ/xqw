@@ -1,6 +1,6 @@
 import type { CampDifficulty, GameState, RelaxOptionId } from "../core/GameState.ts";
 import { ACTIONS, COMPETITION_NAME, type ActionType, type CompetitionName } from "../lib/enums.ts";
-import { COMPETITION_SCHEDULE } from "../lib/constants.ts";
+import { COMPETITION_SCHEDULE, SEASON_WEEKS } from "../lib/constants.ts";
 import { Contest, type ContestConfig } from "../core/Contest.ts";
 import { createContestModal } from "./modals/contest.tsx";
 import { createRelaxModal } from "./modals/relax.tsx";
@@ -222,6 +222,9 @@ let activeContestLabel = "";
 let pendingContestFinish: (() => void) | null = null;
 let needsRender = false;
 
+const TOTAL_SEASONS = 2;
+const usesAbsoluteContestWeeks = COMPETITION_SCHEDULE.some((c) => c.week > SEASON_WEEKS);
+
 export function requestRender(): void {
   needsRender = true;
 }
@@ -314,11 +317,40 @@ function pushLog(message: string): void {
   if (whiteboardLogs.length > LOG_LIMIT) whiteboardLogs.pop();
 }
 
+function getWeekInSeason(week: number): number {
+  return ((Math.max(1, week) - 1) % SEASON_WEEKS) + 1;
+}
+
+function getSeasonIndex(week: number): number {
+  return Math.min(TOTAL_SEASONS - 1, Math.floor((Math.max(1, week) - 1) / SEASON_WEEKS));
+}
+
 function getNextOfficialContest(currentWeek: number): { name: CompetitionName; week: number } | null {
-  const upcoming = COMPETITION_SCHEDULE.filter((c) => !c.nationalTeam && c.week >= currentWeek)
-    .sort((a, b) => a.week - b.week);
-  if (upcoming.length === 0) return null;
-  return { name: upcoming[0].name, week: upcoming[0].week };
+  const ranked: Array<{ name: CompetitionName; week: number }> = [];
+
+  if (usesAbsoluteContestWeeks) {
+    const upcoming = COMPETITION_SCHEDULE.filter((c) => !c.nationalTeam && c.week >= currentWeek).sort(
+      (a, b) => a.week - b.week
+    );
+    if (upcoming.length === 0) return null;
+    return { name: upcoming[0].name, week: upcoming[0].week };
+  }
+
+  const seasonIdx = getSeasonIndex(currentWeek);
+  const addSeason = (idx: number): void => {
+    const offset = idx * SEASON_WEEKS;
+    COMPETITION_SCHEDULE.forEach((c) => {
+      if (c.nationalTeam) return;
+      const absoluteWeek = c.week + offset;
+      if (absoluteWeek >= currentWeek) ranked.push({ name: c.name, week: absoluteWeek });
+    });
+  };
+
+  addSeason(seasonIdx);
+  if (seasonIdx + 1 < TOTAL_SEASONS) addSeason(seasonIdx + 1);
+
+  ranked.sort((a, b) => a.week - b.week);
+  return ranked[0] ?? null;
 }
 
 function formatContestLabel(name: CompetitionName): string {
@@ -327,7 +359,8 @@ function formatContestLabel(name: CompetitionName): string {
 }
 
 function buildContestConfig(contestWeek: number): ContestConfig | null {
-  const def = COMPETITION_SCHEDULE.find((c) => !c.nationalTeam && c.week === contestWeek);
+  const targetWeek = usesAbsoluteContestWeeks ? contestWeek : getWeekInSeason(contestWeek);
+  const def = COMPETITION_SCHEDULE.find((c) => !c.nationalTeam && c.week === targetWeek);
   if (!def) return null;
   const perScore = Math.max(10, Math.floor(def.maxScore / Math.max(1, def.numProblems)));
   const problems = Array.from({ length: def.numProblems }, (_, idx) => {
@@ -352,9 +385,11 @@ function createActionCards(gameState: GameState, appendLog: (msg: string) => voi
   const wrapper = document.createElement("div");
   wrapper.className = "action-cards";
 
-  const contestToday = COMPETITION_SCHEDULE.find(
-    (c) => !c.nationalTeam && c.week === gameState.week
-  );
+  const contestToday = COMPETITION_SCHEDULE.find((c) => {
+    if (c.nationalTeam) return false;
+    if (usesAbsoluteContestWeeks) return c.week === gameState.week;
+    return c.week === getWeekInSeason(gameState.week);
+  });
 
   if (contestToday) {
     const contestConfig = buildContestConfig(contestToday.week);
@@ -366,6 +401,7 @@ function createActionCards(gameState: GameState, appendLog: (msg: string) => voi
       const eligible = gameState.getEligibleContestants(contestToday.name);
       if (eligible.length === 0) {
         appendLog(`第 ${gameState.week} 周：${formatContestLabel(contestToday.name)} 无参赛学生，自动跳过`);
+        gameState.evaluateNoEligibleForContest(contestToday.name);
         if (gameState.getSeasonIndexForWeek() === 1) {
           const alive = gameState.students.filter((s) => s && s.active !== false).length;
           if (alive === 0) {
@@ -374,7 +410,7 @@ function createActionCards(gameState: GameState, appendLog: (msg: string) => voi
             gameState.seasonEndTriggered = true;
           }
         }
-        gameState.advanceWeeks(1);
+        if (!gameState.gameEnded) gameState.advanceWeeks(1);
         whiteboardView = "dashboard";
         requestRender();
         return;
@@ -385,7 +421,7 @@ function createActionCards(gameState: GameState, appendLog: (msg: string) => voi
         activeContest?.updateGameState(gameState);
         const finishedWeek = gameState.week;
         pushLog(`第 ${finishedWeek} 周：完成 ${activeContestLabel}`);
-        gameState.advanceWeeks(1);
+        if (!gameState.gameEnded) gameState.advanceWeeks(1);
         activeContest = null;
         mockSnapshots = null;
         whiteboardView = "dashboard";
