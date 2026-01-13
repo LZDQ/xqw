@@ -10,9 +10,9 @@ import { PRESSURE_THRESHOLD_HIGH, PRESSURE_THRESHOLD_MID } from "../lib/constant
 export const ROOM = { width: 14, depth: 20, height: 7.875 }; // height * 1.75
 export const BOARD_SIZE = { width: 11.2, height: 6.0 };
 // Use root-relative paths so dev server/static builds serve public assets correctly.
-const MODEL_BASE = "/assets/models/";
-const FALLBACK_TEXTURE = "/assets/textures/WOOD 1_0.jpeg";
-const FLAME_TEXTURE = "/assets/textures/Flame_(texture)_JE1_BE1.png";
+const MODEL_BASE = `${import.meta.env.BASE_URL}/assets/models/`;
+const FALLBACK_TEXTURE = `${import.meta.env.BASE_URL}/assets/textures/WOOD 1_0.jpeg`;
+const FLAME_TEXTURE = `${import.meta.env.BASE_URL}/assets/textures/Flame_(texture)_JE1_BE1.png`;
 type AssetKey = "desk" | "chair" | "player" | "ceiling" | "airConditioner";
 const MODEL_SCALE: Record<AssetKey, number> = {
   desk: 0.4,        // doubled to restore 2x sizing
@@ -139,7 +139,7 @@ export function initClassroom(THREE: typeof THREEType, gameState: GameState): Cl
   const airConditioner = new AirConditioner({
     scene,
     position: new THREE.Vector3(-ROOM.width / 2 + 0.25, ROOM.height - 3.5, -ROOM.depth / 2 + 5.0),
-    modelUrl: "/assets/models/air_conditioner.glb",
+    modelUrl: `${import.meta.env.BASE_URL}/assets/models/air_conditioner.glb`,
     autoLoadModel: false,
     initialTemperature: 24,
     initiallyOn: true,
