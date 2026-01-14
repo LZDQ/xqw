@@ -142,7 +142,7 @@ export function initClassroom(THREE: typeof THREEType, gameState: GameState): Cl
   const airConditioner = new AirConditioner({
     scene,
     position: new THREE.Vector3(-ROOM.width / 2 + 0.25, ROOM.height - 3.5, -ROOM.depth / 2 + 5.0),
-    modelUrl: "/assets/models/air_conditioner.glb",
+    modelUrl: `${import.meta.env.BASE_URL}/assets/models/air_conditioner.glb`,
     autoLoadModel: false,
     initialTemperature: 24,
     initiallyOn: true,
